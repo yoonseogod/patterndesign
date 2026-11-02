@@ -1,0 +1,396 @@
+<title>플리츠 폴딩 패턴북</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a pattern book — short direction proposal, then a grid of crease-pattern cards; the Miura card spans wide with a live 3D fold */
+:root {
+  --bg: #f1f2ee;
+  --paper: #ffffff;
+  --paper-edge: #c9ccc2;
+  --ink: #1d211c;
+  --muted: #646a60;
+  --mountain: #c8372d;
+  --valley: #2a62b8;
+  --accent: #3d5a3a;
+  --line: #d8dbd2;
+  --chip: #e5e8df;
+  --face: #f4f3ee;
+  --display: "Gowun Batang", "Noto Serif KR", serif;
+  --body: "Noto Sans KR", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141613; --paper: #1d201c; --paper-edge: #3a3f37; --ink: #e8eae4; --muted: #9ba196;
+  --mountain: #f0766b; --valley: #77a6f2; --accent: #a9c7a3; --line: #2d312b; --chip: #262a24; --face: #d9dbd2; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141613; --paper: #1d201c; --paper-edge: #3a3f37; --ink: #e8eae4; --muted: #9ba196;
+  --mountain: #f0766b; --valley: #77a6f2; --accent: #a9c7a3; --line: #2d312b; --chip: #262a24; --face: #d9dbd2; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.6; }
+.wrap { max-width: 1160px; margin: 0 auto; padding-block: 32px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-family: var(--display); font-size: clamp(1.8rem, 4vw, 2.6rem); margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em; }
+h2 { font-family: var(--display); font-size: 1.35rem; margin: 0; text-wrap: balance; }
+h3 { font-size: 1.05rem; margin: 0; }
+.lead { color: var(--muted); max-width: 64ch; margin: 0; }
+.eyebrow { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 26px 0 34px; }
+@media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+.step { border-top: 2px solid var(--ink); padding-top: 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.step p { margin: 0; font-size: 0.92rem; color: var(--muted); }
+.step b { font-family: var(--mono); font-weight: 500; font-size: 0.8rem; color: var(--accent); }
+
+.keybar { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; margin: 0 0 16px; font-size: 0.88rem; }
+.key { display: inline-flex; align-items: center; gap: 8px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+@media (max-width: 380px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.card-head .en { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+.lvl { font-size: 0.72rem; background: var(--chip); padding: 2px 8px; border-radius: 99px; color: var(--muted); white-space: nowrap; }
+.card p { margin: 0; font-size: 0.9rem; }
+.use { font-size: 0.85rem; color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; }
+.cp { width: 100%; height: auto; display: block; }
+.profile { width: 100%; height: 44px; display: block; }
+.ctrl { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; font-size: 0.85rem; }
+.ctrl output { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--accent); min-width: 3.5ch; text-align: right; }
+.ctrl input { width: 100%; accent-color: var(--accent); }
+input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.miura { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .miura { grid-template-columns: 1fr; } }
+.miura > div { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+canvas { width: 100%; height: 280px; display: block; background: var(--bg); border-radius: 3px; touch-action: none; cursor: grab; }
+button { font: inherit; font-size: 0.85rem; border: 1px solid var(--ink); background: transparent; color: var(--ink); border-radius: 3px; padding: 4px 12px; cursor: pointer; }
+.hint { font-size: 0.78rem; color: var(--muted); }
+
+.method { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+@media (max-width: 760px) { .method { grid-template-columns: 1fr; } }
+.method ol { margin: 8px 0 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; font-size: 0.92rem; max-width: 60ch; }
+.method > div { min-width: 0; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <span class="eyebrow">Origami × Fashion</span>
+  <h1>플리츠 폴딩 패턴북</h1>
+  <p class="lead">종이에서 먼저 접어 보고, 그 구조를 원단과 옷으로 옮기는 수업을 위한 패턴 모음이에요. 슬라이더로 간격과 각도를 바꿔 보세요. 빨간 실선은 산접기, 파란 점선은 골접기예요.</p>
+
+  <div class="steps">
+    <div class="step"><b>1단계</b><h3>종이로 패턴 익히기</h3><p>아래 패턴을 A4나 A3 종이에 그려 접어요. 직선 플리츠에서 시작해 미우라, 요시무라 같은 입체 패턴으로 넘어가요.</p></div>
+    <div class="step"><b>2단계</b><h3>원단에 플리츠 고정하기</h3><p>똑같이 접은 종이 두 장 사이에 폴리에스터 원단을 끼우고 스팀을 쏘이면 접힌 모양이 원단에 남아요.</p></div>
+    <div class="step"><b>3단계</b><h3>옷의 형태로 만들기</h3><p>접힌 평면이 펼쳐지며 몸을 감싸는 구조를 설계해요. 이세이 미야케의 Pleats Please나 132 5. 라인이 이 방식이에요.</p></div>
+  </div>
+
+  <div class="keybar">
+    <span class="key"><svg width="36" height="8"><line x1="0" y1="4" x2="36" y2="4" stroke="var(--mountain)" stroke-width="2"/></svg>산접기 (앞에서 봤을 때 튀어나옴)</span>
+    <span class="key"><svg width="36" height="8"><line x1="0" y1="4" x2="36" y2="4" stroke="var(--valley)" stroke-width="2" stroke-dasharray="5 3"/></svg>골접기 (들어감)</span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="method">
+    <div>
+      <h2>종이 몰드로 원단 플리츠 만들기</h2>
+      <ol>
+        <li>두꺼운 종이(크라프트지, 120g 이상) 두 장에 같은 패턴을 그려요.</li>
+        <li>두 장을 각각 미리 접었다 펴서 접힘 선을 만들어요.</li>
+        <li>종이 사이에 폴리에스터 원단을 끼우고 패턴대로 함께 접어요.</li>
+        <li>접은 묶음을 끈이나 클립으로 고정하고 스팀 다리미로 충분히 쪄요.</li>
+        <li>완전히 식힌 뒤에 종이를 빼야 주름이 오래 남아요.</li>
+      </ol>
+    </div>
+    <div>
+      <h2>제안하는 수업 과제</h2>
+      <ol>
+        <li>직선 플리츠 3종(아코디언, 나이프, 박스)을 같은 크기 종이에 접어 비교하기</li>
+        <li>미우라 또는 요시무라 패턴 하나를 골라 간격과 각도를 바꾼 샘플 3장 만들기</li>
+        <li>가장 마음에 드는 샘플을 원단으로 옮겨 소매, 칼라, 스커트 중 한 부분에 적용하기</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// Clip a segment to x in [x0, x1]; returns null if outside.
+function clipX(a, b, x0, x1) {
+  let [ax, ay] = a, [bx, by] = b;
+  if (ax > bx) [ax, ay, bx, by] = [bx, by, ax, ay];
+  if (bx < x0 || ax > x1) return null;
+  const at = x => ay + (by - ay) * (x - ax) / (bx - ax || 1);
+  if (ax < x0) { ay = at(x0); ax = x0; }
+  if (bx > x1) { by = (ay + (by - ay) * (x1 - ax) / (bx - ax || 1)); bx = x1; }
+  return [[ax, ay], [bx, by]];
+}
+
+// Straight pleats: fold positions along width W, each {x, t}
+function straightCP(W, H, folds) {
+  return {
+    w: W, h: H,
+    paper: `M0 0H${W}V${H}H0Z`,
+    lines: folds.filter(f => f.x > 0.01 && f.x < W - 0.01).map(f => ({ a: [f.x, 0], b: [f.x, H], t: f.t })),
+    profile: folds.filter(f => f.x > 0.01 && f.x < W - 0.01), W
+  };
+}
+
+const patterns = [
+  {
+    id: "accordion", name: "아코디언 플리츠", en: "Accordion pleat", lvl: "입문",
+    desc: "같은 간격으로 산과 골을 번갈아 접는 가장 기본 플리츠예요. 접은 뒤 위아래를 잡아 늘이면 부채처럼 퍼져요.",
+    use: "Pleats Please의 기본 주름. 소매, 스커트, 가방 몸판에 많이 써요.",
+    params: [{ id: "n", label: "칸 수", min: 6, max: 40, step: 2, v: 16 }],
+    build: p => {
+      const W = 100, folds = [];
+      for (let k = 1; k < p.n; k++) folds.push({ x: W * k / p.n, t: k % 2 ? "M" : "V" });
+      return straightCP(W, 66, folds);
+    }
+  },
+  {
+    id: "knife", name: "나이프 플리츠", en: "Knife pleat", lvl: "입문",
+    desc: "모든 주름이 한 방향으로 눕는 플리츠예요. 겉에 보이는 폭과 안으로 접혀 들어가는 깊이를 따로 정해요.",
+    use: "교복 스커트, 킬트. 깊이를 겉폭과 같게 하면 원단이 세 겹이 돼요.",
+    params: [{ id: "w", label: "겉폭", min: 3, max: 15, step: 0.5, v: 8 }, { id: "d", label: "깊이", min: 1, max: 8, step: 0.5, v: 4 }],
+    build: p => {
+      const W = 100, folds = [], rep = p.w + 2 * p.d;
+      for (let s = 0; s < W; s += rep) { folds.push({ x: s + p.w, t: "M" }, { x: s + p.w + p.d, t: "V" }); }
+      return straightCP(W, 66, folds);
+    }
+  },
+  {
+    id: "box", name: "박스 플리츠", en: "Box pleat", lvl: "입문",
+    desc: "양쪽 주름이 서로 반대로 접혀 앞면에 상자 모양 면이 생겨요. 뒷면에서 보면 맞주름이에요.",
+    use: "A라인 스커트, 셔츠 등판 가운데, 원피스 앞판.",
+    params: [{ id: "w", label: "겉폭", min: 4, max: 20, step: 0.5, v: 10 }, { id: "d", label: "깊이", min: 1, max: 6, step: 0.5, v: 3 }],
+    build: p => {
+      const W = 100, folds = [], rep = p.w + 4 * p.d;
+      for (let s = 0; s < W; s += rep) folds.push({ x: s + p.w, t: "M" }, { x: s + p.w + p.d, t: "V" }, { x: s + p.w + 3 * p.d, t: "V" }, { x: s + rep, t: "M" });
+      return straightCP(W, 66, folds);
+    }
+  },
+  {
+    id: "sunray", name: "선레이 플리츠", en: "Sunray pleat", lvl: "초급",
+    desc: "한 점에서 방사형으로 퍼지는 아코디언 플리츠예요. 허리 쪽은 촘촘하고 밑단으로 갈수록 넓어져요.",
+    use: "원형 스커트, 케이프, 칼라. 부채꼴 종이로 그대로 스커트 원형이 돼요.",
+    params: [{ id: "n", label: "주름 수", min: 12, max: 60, step: 2, v: 28 }, { id: "ang", label: "펼친 각도", min: 90, max: 180, step: 5, v: 150 }],
+    build: p => {
+      const R = 64, r = 14, cx = 50, cy = 2, a0 = (90 - p.ang / 2) * Math.PI / 180, a1 = (90 + p.ang / 2) * Math.PI / 180;
+      const pt = (rad, a) => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+      const big = p.ang > 180 ? 1 : 0;
+      const [o0, o1, i0, i1] = [pt(R, a0), pt(R, a1), pt(r, a0), pt(r, a1)];
+      const lines = [];
+      for (let k = 1; k < p.n; k++) { const a = a0 + (a1 - a0) * k / p.n; lines.push({ a: pt(r, a), b: pt(R, a), t: k % 2 ? "M" : "V" }); }
+      const ys = [o0[1], o1[1], i0[1], i1[1], cy + R];
+      return { w: 100, h: Math.max(...ys) + 2, paper: `M${i0} L${o0} A${R} ${R} 0 ${big} 1 ${o1} L${i1} A${r} ${r} 0 ${big} 0 ${i0}Z`, lines };
+    }
+  },
+  {
+    id: "yoshimura", name: "요시무라 패턴", en: "Yoshimura / diamond", lvl: "중급",
+    desc: "가로선은 골, 사선은 산으로 접어요. 다 접은 뒤 양끝을 이어 원통으로 만들면 다이아몬드 면이 생기며 위아래로 압축돼요.",
+    use: "소매, 튜브 드레스 몸판처럼 몸을 감싸는 원통 부위에 좋아요.",
+    params: [{ id: "n", label: "가로 칸", min: 4, max: 14, step: 1, v: 8 }, { id: "m", label: "세로 단", min: 2, max: 12, step: 1, v: 6 }],
+    build: p => {
+      const W = 100, cw = W / p.n, h = cw * 0.5 * Math.tan(Math.PI / 3) * 0.66, H = h * p.m, lines = [];
+      for (let j = 1; j < p.m; j++) lines.push({ a: [0, j * h], b: [W, j * h], t: "V" });
+      for (let j = 0; j < p.m; j++) for (let i = -1; i <= p.n + 1; i++) {
+        const x = (i + (j % 2) * 0.5) * cw;
+        for (const dx of [-0.5, 0.5]) { const s = clipX([x, j * h], [x + dx * cw, (j + 1) * h], 0, W); if (s) lines.push({ a: s[0], b: s[1], t: "M" }); }
+      }
+      return { w: W, h: H, paper: `M0 0H${W}V${H}H0Z`, lines };
+    }
+  },
+  {
+    id: "kresling", name: "크레슬링 트위스트", en: "Kresling", lvl: "중급",
+    desc: "비스듬히 밀린 삼각형 격자예요. 원통으로 붙이면 비틀면서 납작하게 접히고, 놓으면 다시 솟아올라요.",
+    use: "목둘레, 소매 끝, 움직이는 장식. 왼쪽 끝 칸은 풀칠 여백이에요.",
+    params: [{ id: "n", label: "둘레 칸", min: 5, max: 10, step: 1, v: 6 }, { id: "m", label: "단 수", min: 1, max: 5, step: 1, v: 3 }, { id: "s", label: "비틀림", min: 0.2, max: 0.8, step: 0.05, v: 0.45 }],
+    build: p => {
+      const cw = 100 / (p.n + 1 + p.m * p.s), h = cw * 0.9, lines = [];
+      const P = (i, j) => [i * cw + j * p.s * cw, j * h];
+      for (let j = 1; j < p.m; j++) lines.push({ a: P(0, j), b: P(p.n + 1, j), t: "M" });
+      for (let j = 0; j < p.m; j++) for (let i = 0; i <= p.n + 1; i++) {
+        if (i > 0 && i <= p.n) lines.push({ a: P(i, j), b: P(i, j + 1), t: "M" });
+        if (i <= p.n) lines.push({ a: P(i, j), b: P(i + 1, j + 1), t: "V" });
+      }
+      const c = [P(0, 0), P(p.n + 1, 0), P(p.n + 1, p.m), P(0, p.m)];
+      return { w: P(p.n + 1, p.m)[0] + 1, h: p.m * h, paper: `M${c.join("L")}Z`, lines, glue: [P(0, 0), P(1, 0), P(1, p.m), P(0, p.m)] };
+    }
+  }
+];
+
+// Miura-ori geometry (Schenk & Guest): vertex (i, j) for fold angle th, sector angle g
+function miuraVerts(cols, rows, a, b, g, th) {
+  const k = Math.sqrt(1 + Math.cos(th) ** 2 * Math.tan(g) ** 2);
+  const H = a * Math.sin(th) * Math.sin(g), S = b * Math.cos(th) * Math.tan(g) / k;
+  const L = a * Math.sqrt(1 - Math.sin(th) ** 2 * Math.sin(g) ** 2), V = b / k;
+  const v = [];
+  for (let i = 0; i <= cols; i++) { v[i] = []; for (let j = 0; j <= rows; j++) v[i][j] = [i * S, j * L + (i % 2) * V, (j % 2) * H]; }
+  return v;
+}
+
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
+
+function drawCP(svg, cp) {
+  svg.innerHTML = "";
+  const pad = 2;
+  svg.setAttribute("viewBox", `${-pad} ${-pad} ${cp.w + pad * 2} ${cp.h + pad * 2}`);
+  el("path", { d: cp.paper, fill: "var(--paper)", stroke: "var(--paper-edge)", "stroke-width": 0.5 }, svg);
+  if (cp.glue) el("path", { d: `M${cp.glue.join("L")}Z`, fill: "var(--chip)", stroke: "none" }, svg);
+  for (const l of cp.lines) el("line", { x1: l.a[0], y1: l.a[1], x2: l.b[0], y2: l.b[1], stroke: l.t === "M" ? "var(--mountain)" : "var(--valley)", "stroke-width": 0.45, "stroke-dasharray": l.t === "M" ? "none" : "1.4 0.9", "stroke-linecap": "round" }, svg);
+}
+
+// Side view: walk along the sheet, turning at each fold (partially folded)
+function drawProfile(svg, cp) {
+  svg.innerHTML = "";
+  const open = 40 * Math.PI / 180, turn = Math.PI - open;
+  let x = 0, y = 0, dir = 0, last = 0;
+  const pts = [[0, 0]];
+  for (const f of [...cp.profile, { x: cp.W, t: null }]) {
+    const len = f.x - last; x += len * Math.cos(dir); y += len * Math.sin(dir); pts.push([x, y]);
+    if (f.t) dir += f.t === "M" ? -turn : turn;
+    last = f.x;
+  }
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  svg.setAttribute("viewBox", `${minX - 2} ${minY - 2} ${maxX - minX + 4} ${Math.max(maxY - minY, 4) + 4}`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  el("polyline", { points: pts.map(p => p.join(",")).join(" "), fill: "none", stroke: "var(--ink)", "stroke-width": 0.6, "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke" }, svg);
+}
+
+function makeCtrl(card, p, onChange) {
+  const vals = {};
+  for (const q of p.params) {
+    vals[q.id] = q.v;
+    const row = document.createElement("div"); row.className = "ctrl";
+    const id = `${p.id}-${q.id}`;
+    row.innerHTML = `<label for="${id}">${q.label}</label><input type="range" id="${id}" min="${q.min}" max="${q.max}" step="${q.step}" value="${q.v}"><output for="${id}">${q.v}</output>`;
+    const inp = row.querySelector("input"), out = row.querySelector("output");
+    inp.addEventListener("input", () => { vals[q.id] = parseFloat(inp.value); out.textContent = inp.value; onChange(vals); });
+    card.appendChild(row);
+  }
+  return vals;
+}
+
+const grid = document.getElementById("grid");
+for (const p of patterns) {
+  const card = document.createElement("article"); card.className = "card";
+  card.innerHTML = `<div class="card-head"><h3>${p.name} <span class="en">${p.en}</span></h3><span class="lvl">${p.lvl}</span></div>`;
+  const svg = el("svg", { class: "cp", role: "img", "aria-label": `${p.name} 접기 도면` }, card);
+  let prof = null;
+  const render = v => { const cp = p.build(v); drawCP(svg, cp); if (prof) drawProfile(prof, cp); };
+  if (["accordion", "knife", "box"].includes(p.id)) {
+    const cap = document.createElement("span"); cap.className = "hint"; cap.textContent = "옆에서 본 접힌 모양";
+    prof = el("svg", { class: "profile", role: "img", "aria-label": "옆에서 본 단면" });
+    card.append(prof, cap);
+  }
+  const d = document.createElement("p"); d.textContent = p.desc; card.appendChild(d);
+  const u = document.createElement("p"); u.className = "use"; u.textContent = p.use; card.appendChild(u);
+  render(makeCtrl(card, p, render));
+  grid.appendChild(card);
+}
+
+// Miura card (wide, with 3D)
+(() => {
+  const card = document.createElement("article"); card.className = "card wide";
+  card.innerHTML = `
+    <div class="card-head"><h3>미우라 접기 <span class="en">Miura-ori</span></h3><span class="lvl">중급</span></div>
+    <div class="miura">
+      <div><svg class="cp" id="miura-cp" role="img" aria-label="미우라 접기 도면"></svg>
+        <p>가로 지그재그 선과 세로 직선으로 이뤄진 평행사변형 격자예요. 한쪽 모서리를 당기면 전체가 한 번에 펼쳐지고 접혀요. 인공위성 태양전지판을 접는 데 쓰인 패턴이에요.</p>
+        <p class="use">늘어나고 줄어드는 면을 만들 수 있어서 132 5.처럼 평면이 입체로 펼쳐지는 옷, 신축성 있는 패널에 응용해요.</p></div>
+      <div><canvas id="miura-3d" aria-label="미우라 접기 3D 미리보기"></canvas>
+        <div class="ctrl"><label for="miura-fold">접힘 정도</label><input type="range" id="miura-fold" min="0" max="85" step="1" value="45"><output id="miura-fold-o">45°</output></div>
+        <div class="ctrl"><label for="miura-g">평행사변형 각도</label><input type="range" id="miura-g" min="50" max="85" step="1" value="68"><output id="miura-g-o">68°</output></div>
+        <div class="ctrl"><label for="miura-n">칸 수</label><input type="range" id="miura-n" min="4" max="14" step="2" value="8"><output id="miura-n-o">8</output></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="miura-play" type="button">접었다 펴기 재생</button><span class="hint">그림을 드래그하면 돌아가요.</span></div>
+      </div>
+    </div>`;
+  grid.appendChild(card);
+
+  const cv = card.querySelector("#miura-3d"), ctx = cv.getContext("2d");
+  const $ = id => card.querySelector("#" + id);
+  let yaw = -0.6, pitch = 0.95, playing = false, t0 = 0;
+  const a = 10, b = 10;
+
+  function cpDraw() {
+    const n = +$("miura-n").value, g = +$("miura-g").value * Math.PI / 180;
+    const cols = n, rows = Math.round(n * 0.75) * 2 / 2;
+    const v = miuraVerts(cols, rows, a, b, g, 0);
+    const lines = [];
+    for (let i = 0; i <= cols; i++) for (let j = 0; j <= rows; j++) {
+      const p = v[i][j];
+      if (i < cols && j > 0 && j < rows) lines.push({ a: p, b: v[i + 1][j], t: j % 2 ? "M" : "V" });
+      if (j < rows && i > 0 && i < cols) lines.push({ a: p, b: v[i][j + 1], t: (i + j) % 2 ? "M" : "V" });
+    }
+    const top = v.map(c => c[0]), bot = v.map(c => c[rows]).reverse();
+    const all = v.flat(), w = Math.max(...all.map(p => p[0])), h = Math.max(...all.map(p => p[1]));
+    drawCP($("miura-cp"), { w, h, paper: `M${top.map(p => p[0] + " " + p[1]).join("L")}L${bot.map(p => p[0] + " " + p[1]).join("L")}Z`, lines });
+    return { cols, rows, g };
+  }
+
+  function hex(c) { const m = c.replace("#", ""); return [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16)); }
+
+  function draw3d() {
+    const { cols, rows, g } = cpDraw();
+    const th = +$("miura-fold").value * Math.PI / 180;
+    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const v = miuraVerts(cols, rows, a, b, g, th);
+    const flat = v.flat(), cx = (Math.max(...flat.map(p => p[0])) + Math.min(...flat.map(p => p[0]))) / 2;
+    const cy = (Math.max(...flat.map(p => p[1])) + Math.min(...flat.map(p => p[1]))) / 2, cz = Math.max(...flat.map(p => p[2])) / 2;
+    const cyw = Math.cos(yaw), syw = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const tf = ([x, y, z]) => { x -= cx; y -= cy; z -= cz; const x1 = x * cyw - y * syw, y1 = x * syw + y * cyw; return [x1, y1 * cp - z * sp, y1 * sp + z * cp]; };
+    const T = v.map(c => c.map(tf));
+    const span = Math.max(cols * b, rows * a) * 0.95, sc = Math.min(W, H * 1.4) / span;
+    const base = hex(css("--face") || "#f4f3ee"), edge = css("--ink");
+    const faces = [];
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+      const q = [T[i][j], T[i + 1][j], T[i + 1][j + 1], T[i][j + 1]];
+      const u = q[1].map((c, k) => c - q[0][k]), w = q[3].map((c, k) => c - q[0][k]);
+      const nrm = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+      const len = Math.hypot(...nrm) || 1, L = [0.35, -0.55, 0.76];
+      const lit = 0.45 + 0.55 * Math.abs((nrm[0] * L[0] + nrm[1] * L[1] + nrm[2] * L[2]) / len);
+      faces.push({ q, z: q.reduce((s, p) => s + p[2], 0) / 4, lit });
+    }
+    faces.sort((A, B) => A.z - B.z);
+    ctx.lineJoin = "round"; ctx.lineWidth = 0.6; ctx.strokeStyle = edge;
+    for (const f of faces) {
+      ctx.beginPath();
+      f.q.forEach((p, k) => { const X = W / 2 + p[0] * sc, Y = H / 2 + p[1] * sc; k ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+      ctx.closePath();
+      ctx.fillStyle = `rgb(${base.map(c => Math.round(c * f.lit)).join(",")})`;
+      ctx.fill(); ctx.stroke();
+    }
+  }
+
+  for (const id of ["miura-fold", "miura-g", "miura-n"]) $(id).addEventListener("input", () => { $(id + "-o").textContent = $(id).value + (id === "miura-n" ? "" : "°"); draw3d(); });
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function loop(ts) {
+    if (!playing) return;
+    if (!t0) t0 = ts;
+    const val = Math.round(42.5 - 42.5 * Math.cos((ts - t0) / 1400));
+    $("miura-fold").value = val; $("miura-fold-o").textContent = val + "°"; draw3d();
+    requestAnimationFrame(loop);
+  }
+  $("miura-play").addEventListener("click", () => {
+    if (reduce) { $("miura-fold").value = +$("miura-fold").value > 40 ? 0 : 80; $("miura-fold").dispatchEvent(new Event("input")); return; }
+    playing = !playing; t0 = 0; $("miura-play").textContent = playing ? "멈추기" : "접었다 펴기 재생";
+    if (playing) requestAnimationFrame(loop);
+  });
+  let drag = null;
+  cv.addEventListener("pointerdown", e => { drag = [e.clientX, e.clientY, yaw, pitch]; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", e => { if (!drag) return; yaw = drag[2] + (e.clientX - drag[0]) * 0.01; pitch = Math.max(0.1, Math.min(1.45, drag[3] + (e.clientY - drag[1]) * 0.01)); draw3d(); });
+  cv.addEventListener("pointerup", () => drag = null);
+  addEventListener("resize", draw3d);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw3d);
+  new MutationObserver(draw3d).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  draw3d();
+})();
+</script>
