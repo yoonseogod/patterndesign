@@ -34,6 +34,26 @@ def bez(p0, c1, c2, p1, n=40):
         out.append(tuple(u**3*p0[j] + 3*u*u*t*c1[j] + 3*u*t*t*c2[j] + t**3*p1[j] for j in (0, 1)))
     return out
 
+
+def _unit(v):
+    n = math.hypot(*v); return (v[0]/n, v[1]/n)
+def square_end(pts, at_start, seam_dir, blend=4.0):
+    """Re-shape the first/last `blend` cm of a curve so it meets the adjoining seam at 90 deg."""
+    if not at_start:
+        return list(reversed(square_end(list(reversed(pts)), True, seam_dir, blend)))
+    p0 = pts[0]; L = plen(pts); blend = min(blend, L*.4)
+    q = at(pts, blend); q2 = at(pts, blend+.3)
+    sd = _unit(seam_dir)
+    perp = (-sd[1], sd[0])
+    if perp[0]*(q[0]-p0[0]) + perp[1]*(q[1]-p0[1]) < 0: perp = (-perp[0], -perp[1])
+    tq = _unit((q2[0]-q[0], q2[1]-q[1])); k = blend/3
+    head = bez(p0, (p0[0]+perp[0]*k, p0[1]+perp[1]*k), (q[0]-tq[0]*k, q[1]-tq[1]*k), q, 20)
+    tail = list(substring(LineString(pts), blend, L).coords)
+    return head + tail[1:]
+def sdir(pts, at_start=True):
+    a, b = (pts[0], pts[3]) if at_start else (pts[-1], pts[-4])
+    return (b[0]-a[0], b[1]-a[1])
+
 def line(a, b, n=2):
     return [(a[0]+(b[0]-a[0])*k/(n-1), a[1]+(b[1]-a[1])*k/(n-1)) for k in range(n)]
 
@@ -66,6 +86,7 @@ def hem_f(x):
 HEMSIDE = 25.0
 
 front_arm = cr([SP_F, (17.3, 10), (17.0, 14), (18.3, 18), (20.5, 20.4), UA_F])
+front_arm = square_end(front_arm, True, (SNP_F[0]-SP_F[0], SNP_F[1]-SP_F[1]), 3.5)
 TOP_R = (-23.5, 22.5)                 # right side top (one-shoulder edge)
 neck_f = cr([TOP_R, (-16, 20.2), (-8, 16.6), (0, 11.6), (4.5, 6.0), SNP_F], 30)
 neck_fB, neck_fA = split_at_x(neck_f, -7.5)
@@ -126,7 +147,7 @@ FB['texts'] = [((-17.5, 50), ['2  앞판 B', '거즈/튤 베이스 x1', '+ 실 �
 
 # ---------------------------------------------------------------- back
 SNP_B = (7.3, 0.0)
-SP_B = (SNP_B[0]+13*math.cos(math.radians(18)), 13*math.sin(math.radians(18)))
+SP_B = (SNP_B[0]+12.5*math.cos(math.radians(18)), 12.5*math.sin(math.radians(18)))   # = front shoulder (quilting cannot be eased)
 UA_B = (22.5, 21.0)
 back_arm = cr([SP_B, (18.6, 9.5), (18.4, 14), (19.4, 18.2), (20.8, 20.4), UA_B])
 def hem_b(x): return 80 - x/24*4
@@ -134,6 +155,8 @@ CBN = 15.0
 neck_bL = bez((0, CBN), (3.5, CBN), (6.2, 6), SNP_B)
 neck_bR = bez((0, CBN), (-6, CBN), (-17, 22.2), (-22.5, 22.5))
 side_bL = side_seam(UA_B, (20.5, 39), (23.5, 57), (24, hem_b(24)))
+back_arm = square_end(back_arm, True, (SNP_B[0]-SP_B[0], SNP_B[1]-SP_B[1]), 3.5)
+back_arm = square_end(back_arm, False, sdir(side_bL), 4.0)
 side_bR = side_seam((-22.5, 22.5), (-20.5, 39), (-23.5, 57), (-24, hem_b(-24)))
 
 BL = piece('3  뒤판 왼쪽', [
@@ -185,6 +208,8 @@ def sleeve_build(cap):
            along(F0, top, .25, -1.2), F0]
     return cr(pts, 20), bwF, bwB
 capc, bwF, bwB = sleeve_build(cap)
+capc = square_end(capc, True, (-M['wrist']/2-(-bwB), M['sleeve']-cap), 4.5)     # back underarm
+capc = square_end(capc, False, (M['wrist']/2-bwF, M['sleeve']-cap), 4.5)       # front underarm
 cap_len = plen(capc)
 WR = M['wrist']/2
 SL = M['sleeve']
@@ -372,6 +397,7 @@ hem_side, hem_rest = split_at_x(hem_A, 9.5); HL = hem_side[-1]   # (25,79)->HL ,
 prin_c = cr([AP, BPL, W1, DT, HL], 24)           # AP -> HL  (centre panel edge)
 prin_s = cr([AP_r, BPL, W2, DT, HL], 24)         # AP'-> HL  (side panel edge)
 side_s = side_seam(UA_r, W_F, HIP_F, (HEMSIDE, hem_f(HEMSIDE)))
+arm_s_r = square_end(arm_s_r, False, sdir(side_s), 4.0)
 
 CEN = piece('1  앞 중심판', [
     dict(pts=neck_fA, sa=0, n='neck'),            # T -> SNP
@@ -396,6 +422,8 @@ up_B_r = rot(style_up, BPR, phiR)                # BPR -> T'
 TOP_Rr = neck_B_r[0]
 low_B = style_lower(-10.75)                       # HB -> BPR
 side_Rn = side_seam(TOP_Rr, (-21.5, 42), (-24.5, 60), (-HEMSIDE, hem_f(-HEMSIDE)))
+neck_B_r = square_end(neck_B_r, True, sdir(side_Rn), 5.0)
+hem_B = square_end(hem_B, True, sdir(low_B), 4.0)
 FBN = piece('2  앞판 B', [
     dict(pts=neck_B_r, sa=0, n='neck'),
     dict(pts=rev(up_B_r) + rev(low_B)[1:], sa=1, n='style'),   # T' -> BPR -> HB
@@ -441,7 +469,9 @@ FRONT_LINES = dict(princess=prin_c, style=style_A, L1=L1, L2=L2)
 
 for pc in pieces: compute(pc)
 
-neck_total = plen(neck_f) + plen(neck_bL) + plen(neck_bR)
+neck_total = plen(neck_fA) + plen(neck_B_r) + plen(neck_bL) + plen(neck_bR)
+AH_REAL = plen(arm_c) + plen(arm_s_r) + BAH
+CAP_EASE = cap_len - AH_REAL
 
 if __name__ == '__main__':
     print('FAH %.1f BAH %.1f AH %.1f cap %.1f caplen %.1f ease %.1f' % (FAH, BAH, AH, cap, cap_len, cap_len-AH))
