@@ -58,6 +58,12 @@ h3 { font-size: 1.05rem; margin: 0; }
 .lbl { font-size: 0.72rem; letter-spacing: 0.06em; color: var(--muted); }
 .draft, .section { width: 100%; height: auto; display: block; }
 .section { max-height: 90px; }
+.secs { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.secs.multi { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+.sec { margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sec figcaption { font-size: 0.72rem; color: var(--muted); text-align: center; }
+.views { display: flex; flex-wrap: wrap; gap: 6px; }
+.views button { padding: 3px 10px; }
 .card p { margin: 0; font-size: 0.9rem; }
 .use { font-size: 0.85rem; color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; }
 .calc { font-size: 0.84rem; background: var(--chip); border-radius: 3px; padding: 8px 10px; font-variant-numeric: tabular-nums; }
@@ -88,7 +94,10 @@ input:focus-visible, button:focus-visible, select:focus-visible { outline: 2px s
     <div class="vctrl">
       <div class="ctrl"><label for="pick">주름</label><select id="pick"></select><span></span></div>
       <div class="ctrl"><label for="open">밑단 벌어짐</label><input type="range" id="open" min="2" max="70" step="1" value="35"><output id="open-o">35°</output></div>
+      <div class="ctrl"><label for="morph">펼침 → 완성</label><input type="range" id="morph" min="0" max="100" step="1" value="100"><output id="morph-o">완성</output></div>
+      <div class="views"><button type="button" data-view="angle">비스듬히</button><button type="button" data-view="front">정면</button><button type="button" data-view="top">위에서</button><button type="button" data-view="close">가까이</button></div>
       <label class="check"><input type="checkbox" id="showLines" checked> 접는 선·박음선 보기</label>
+      <p class="hint">파란색으로 칠한 부분이 주름 분량(원통이나 잔이 되는 원단)이에요. 고블릿·세겹 주름은 집어 박는 높이에 진한 링을 표시했어요.</p>
       <p class="hint">드래그로 돌리고 휠이나 두 손가락으로 확대해요. 겉면은 흰색, 안면은 초록색이에요.</p>
       <p class="hint">스커트용 주름(1~3, 5, 9, 10)은 위쪽 12cm를 눌러 박은 상태로, 커튼용 주름(4, 6~8)은 위쪽 헤딩을 박은 상태로 표현했어요. 밑단 벌어짐은 박음 아래로 주름이 얼마나 퍼지는지를 정해요.</p>
     </div>
@@ -122,14 +131,15 @@ function finPts(len, u0, u1, n, w = 0.5) {
 }
 // one cross-section from a list of pieces; every key of a pleat uses the same piece structure
 function piecesProfile(pieces, K) {
-  const pts = [[0, 0]], marks = [];
+  const pts = [[0, 0]], marks = [], zone = [0];
   for (let r = 0; r < K; r++) for (const pc of pieces) {
     const o = pts[pts.length - 1];
     const loc = pc.type === "line" ? arcPts(pc.len, pc.len, 1, SUB) : pc.type === "arc" ? arcPts(pc.chord, pc.len, pc.sign, SUB) : finPts(pc.len, pc.u0, pc.u1, SUB, pc.w);
-    loc.forEach(p => pts.push([o[0] + p[0], o[1] + p[1]]));
+    const z = pieces.indexOf(pc) > 0 ? 1 : 0;
+    loc.forEach(p => { pts.push([o[0] + p[0], o[1] + p[1]]); zone.push(z); });
     if (pc.mark) marks.push({ i: pts.length - 1, t: pc.mark });
   }
-  return { pts, marks };
+  return { pts, marks, zone };
 }
 // pressed pleats: walk along the fabric, turning at each fold (M turns away from the viewer)
 function turtle(seq, open) {
@@ -337,17 +347,31 @@ function drawMotifDraft(svg, p) {
   el("line", { x1: ox - 0.5, y1: a * 0.25, x2: ox + a + 0.5, y2: a * 0.25, ...lineStyle("S") }, svg);
   txt(svg, ox + a / 2, a * 0.25 - 0.8, "솔기에 끼워 박는 쪽", 1);
 }
-function drawSection(svg, pl, p, open) {
-  svg.innerHTML = "";
-  let prof;
-  if (pl.id === "motif") { svg.style.display = "none"; return; }
+function sectionSVG(pts, zone, label) {
+  const box = document.createElement("figure"); box.className = "sec";
+  const svg = el("svg", { class: "section", role: "img", "aria-label": label, preserveAspectRatio: "xMidYMid meet" }, box);
+  const xs = pts.map(q => q[0]), zs = pts.map(q => -q[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs), pad = 0.8;
+  svg.setAttribute("viewBox", `${x0 - pad} ${z0 - pad} ${x1 - x0 + 2 * pad} ${Math.max(z1 - z0, 3) + 2 * pad}`);
+  el("line", { x1: x0 - pad, y1: 0, x2: x1 + pad, y2: 0, stroke: "var(--line)", "stroke-width": 1, "vector-effect": "non-scaling-stroke" }, svg);
+  // draw plain fabric and pleat fabric in different colours
+  let run = [pts[0]], cur = zone ? zone[1] : 0;
+  const flush = z => { if (run.length > 1) el("polyline", { points: run.map(q => `${q[0]},${-q[1]}`).join(" "), fill: "none", stroke: z ? "var(--valley)" : "var(--ink)", "stroke-width": z ? 2.2 : 1.4, "vector-effect": "non-scaling-stroke", "stroke-linejoin": "round", "stroke-linecap": "round" }, svg); };
+  for (let i = 1; i < pts.length; i++) { const z = zone ? zone[i] : 0; if (z !== cur) { flush(cur); run = [pts[i - 1]]; cur = z; } run.push(pts[i]); }
+  flush(cur);
+  const cap = document.createElement("figcaption"); cap.textContent = label; box.appendChild(cap);
+  return box;
+}
+function drawSection(box, pl, p, open) {
+  box.innerHTML = "";
+  if (pl.id === "motif") { box.hidden = true; return; }
   const b = pl.build(p);
-  if (b.kind === "flat") prof = turtle(b.seq.slice(0, Math.min(b.seq.length, 12)), Math.max(open, 6));
-  else { const k = b.keys()[0]; prof = { pts: k.pts.slice(0, Math.min(k.pts.length, (pl.build(p).period.length * SUB) * 3 + 1)) }; }
-  const xs = prof.pts.map(q => q[0]), zs = prof.pts.map(q => -q[1]);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs), pad = 1;
-  svg.setAttribute("viewBox", `${x0 - pad} ${z0 - pad} ${x1 - x0 + 2 * pad} ${Math.max(z1 - z0, 2) + 2 * pad}`);
-  el("polyline", { points: prof.pts.map(q => `${q[0]},${-q[1]}`).join(" "), fill: "none", stroke: "var(--ink)", "stroke-width": 1.4, "vector-effect": "non-scaling-stroke", "stroke-linejoin": "round" }, svg);
+  if (b.kind === "flat") { const t = turtle(b.seq.slice(0, Math.min(b.seq.length, 12)), Math.max(open, 6)); box.appendChild(sectionSVG(t.pts, null, "밑단에서 본 단면")); return; }
+  const keys = b.keys(), n = b.period.length * SUB * 2 + 1, hd = typeof pl.heading === "function" ? pl.heading(p) : pl.heading;
+  const pickKey = v => keys.reduce((best, k) => Math.abs(k.v - v) < Math.abs(best.v - v) ? k : best, keys[0]);
+  const rows = pl.stitch === "full" ? [[0, "맨 위"], [45, "밑단"]] : [[0, "맨 위"], [hd, pl.pinch ? "박음 끝 (집은 곳)" : "박음 끝"], [45, "밑단"]];
+  box.classList.add("multi");
+  for (const [v, lab] of rows) { const k = pickKey(v); box.appendChild(sectionSVG(k.pts.slice(0, n), k.zone.slice(0, n), lab)); }
 }
 
 // ---------- cards ----------
@@ -357,9 +381,9 @@ for (const pl of pleats) {
   card.innerHTML = `<div class="card-head"><span class="no">${pl.no}</span><h3>${pl.name} <span class="en">${pl.en}</span></h3></div>
     <span class="lbl">원단 제도</span>`;
   const draft = el("svg", { class: "draft", role: "img", "aria-label": pl.name + " 원단 제도" }, card);
-  const sl = document.createElement("span"); sl.className = "lbl"; sl.textContent = pl.id === "motif" ? "" : "단면 (위에서 본 모양)";
+  const sl = document.createElement("span"); sl.className = "lbl"; sl.textContent = pl.id === "motif" ? "" : "단면 (위에서 내려다본 모양 · 파란 선이 주름 분량)";
   card.appendChild(sl);
-  const sec = el("svg", { class: "section", role: "img", "aria-label": pl.name + " 단면", preserveAspectRatio: "xMidYMid meet" }, card);
+  const sec = document.createElement("div"); sec.className = "secs"; card.appendChild(sec);
   const calc = document.createElement("div"); calc.className = "calc";
   const vals = {}; state[pl.id] = vals;
   const render = () => {
@@ -375,7 +399,7 @@ for (const pl of pleats) {
     const row = document.createElement("div"); row.className = "ctrl"; const id = `${pl.id}-${q.id}`;
     row.innerHTML = `<label for="${id}">${q.label}</label><input type="range" id="${id}" min="${q.min}" max="${q.max}" step="${q.step}" value="${q.v}"><output>${q.v}</output>`;
     const inp = row.querySelector("input"), out = row.querySelector("output");
-    inp.addEventListener("input", () => { vals[q.id] = parseFloat(inp.value); out.textContent = inp.value; render(); if (window.cur3d === pl.id) window.load3d && window.load3d(pl.id); });
+    inp.addEventListener("input", () => { vals[q.id] = parseFloat(inp.value); out.textContent = inp.value; render(); if (window.cur3d === pl.id) window.load3d && window.load3d(pl.id, true); });
     card.appendChild(row);
   }
   const d = document.createElement("p"); d.textContent = pl.desc;
@@ -390,7 +414,7 @@ for (const pl of pleats) {
 (() => {
   const pick = document.getElementById("pick"), open = document.getElementById("open"), host = document.getElementById("three"), cap = document.getElementById("cap");
   pleats.forEach(pl => { const o = document.createElement("option"); o.value = pl.id; o.textContent = `${pl.no}. ${pl.name}`; pick.appendChild(o); });
-  open.addEventListener("input", () => { document.getElementById("open-o").textContent = open.value + "°"; pleats.forEach(pl => pl.render()); window.load3d(window.cur3d); });
+  open.addEventListener("input", () => { document.getElementById("open-o").textContent = open.value + "°"; pleats.forEach(pl => pl.render()); window.load3d(window.cur3d, true); });
   if (!window.THREE) { cap.textContent = "3D 라이브러리를 불러오지 못했어요"; window.load3d = () => {}; return; }
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1)); host.appendChild(renderer.domElement);
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(35, 1, 0.1, 2000);
@@ -398,22 +422,29 @@ for (const pl of pleats) {
   scene.add(new THREE.HemisphereLight(0xffffff, 0x556655, 0.7));
   const l1 = new THREE.DirectionalLight(0xffffff, 0.75); l1.position.set(40, 60, 90); scene.add(l1);
   const l2 = new THREE.DirectionalLight(0xffffff, 0.3); l2.position.set(-60, -20, -80); scene.add(l2);
-  const front = new THREE.MeshLambertMaterial({ color: 0xf7f6f0, side: THREE.FrontSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  const front = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, side: THREE.FrontSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
   const back = new THREE.MeshLambertMaterial({ color: 0x5f8a62, side: THREE.BackSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
   let group = null;
   const smooth = t => t * t * (3 - 2 * t);
 
-  function surface(keys, H) {
-    const rows = 70, cols = keys[0].pts.length, pos = new Float32Array(rows * cols * 3);
+  function surface(keys, H, morph) {
+    const rows = 70, cols = keys[0].pts.length, pos = new Float32Array(rows * cols * 3), col = new Float32Array(rows * cols * 3);
+    const flat = [0]; for (let c = 1; c < cols; c++) flat.push(flat[c - 1] + Math.hypot(keys[0].pts[c][0] - keys[0].pts[c - 1][0], keys[0].pts[c][1] - keys[0].pts[c - 1][1]));
+    const fm = flat[cols - 1] / 2, m = smooth(morph), zone = keys[0].zone || [];
+    const cz = new THREE.Color(0xc9dcf2), cw = new THREE.Color(0xf7f6f0);
     const at = v => { let k = 0; while (k < keys.length - 2 && v > keys[k + 1].v) k++; const a = keys[k], b = keys[k + 1]; const t = smooth(Math.min(1, Math.max(0, (v - a.v) / (b.v - a.v || 1)))); return [a, b, t]; };
     let mx = 0; keys[0].pts.forEach(q => mx += q[0]); mx /= cols;
     for (let r = 0; r < rows; r++) {
       const v = H * r / (rows - 1), [a, b, t] = at(v);
-      for (let c = 0; c < cols; c++) { const i = (r * cols + c) * 3; pos[i] = a.pts[c][0] * (1 - t) + b.pts[c][0] * t - mx; pos[i + 1] = -v; pos[i + 2] = a.pts[c][1] * (1 - t) + b.pts[c][1] * t; }
+      for (let c = 0; c < cols; c++) {
+        const i = (r * cols + c) * 3, fx = a.pts[c][0] * (1 - t) + b.pts[c][0] * t - mx, fz = a.pts[c][1] * (1 - t) + b.pts[c][1] * t;
+        pos[i] = (flat[c] - fm) * (1 - m) + fx * m; pos[i + 1] = -v; pos[i + 2] = fz * m;
+        const cc = zone[c] ? cz : cw; col[i] = cc.r; col[i + 1] = cc.g; col[i + 2] = cc.b;
+      }
     }
     const idx = [];
     for (let r = 0; r < rows - 1; r++) for (let c = 0; c < cols - 1; c++) { const p = r * cols + c; idx.push(p, p + cols, p + 1, p + 1, p + cols, p + cols + 1); }
-    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("color", new THREE.BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
     return { g, pos, rows, cols };
   }
   function lineAlong(pos, rows, cols, c, r0, r1, color, dashed) {
@@ -444,7 +475,25 @@ for (const pl of pleats) {
     return { grp, size: tot };
   }
 
-  window.load3d = id => {
+  const morphEl = document.getElementById("morph"); let lastBox = null, lastPl = null;
+  function view(kind) {
+    if (!lastBox) return;
+    const c = lastBox.getCenter(new THREE.Vector3()), sz = lastBox.getSize(new THREE.Vector3());
+    const fitD = f => f / (2 * Math.tan(17.5 * D2R)) * 1.25;
+    if (kind === "close" && lastPl && lastPl.kind !== "motif") {
+      const t = new THREE.Vector3(c.x, lastBox.max.y - 9, c.z); controls.target.copy(t);
+      camera.position.set(t.x + 16, t.y + 16, t.z + 46);
+    } else {
+      controls.target.copy(c); const d = fitD(Math.max(sz.x / camera.aspect, sz.y, 8));
+      if (kind === "front") camera.position.set(c.x, c.y, c.z + d);
+      else if (kind === "top") { const dt = fitD(Math.max(sz.x / camera.aspect, sz.z * 2, 8)); controls.target.set(c.x, lastBox.max.y, c.z); camera.position.set(c.x, lastBox.max.y + dt, c.z + 0.01); }
+      else camera.position.set(c.x + d * 0.42, c.y + d * (lastPl && lastPl.kind === "motif" ? 0.25 : -0.45), c.z + d * 0.8);
+    }
+    controls.update();
+  }
+  document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => view(b.dataset.view)));
+  morphEl.addEventListener("input", () => { document.getElementById("morph-o").textContent = morphEl.value >= 100 ? "완성" : morphEl.value <= 0 ? "펼침" : morphEl.value + "%"; window.load3d(window.cur3d, true); });
+  window.load3d = (id, keepCam) => {
     const pl = pleats.find(q => q.id === id) || pleats[0], p = state[pl.id]; window.cur3d = pl.id; pick.value = pl.id;
     cap.textContent = `${pl.no}. ${pl.name}` + (pl.typeName ? ` · ${pl.typeName(p.type)}` : "");
     if (group) { scene.remove(group); group.traverse(o => { o.geometry && o.geometry.dispose(); }); }
@@ -452,7 +501,7 @@ for (const pl of pleats) {
     if (pl.id === "motif") { const m = motif(p); group.add(m.grp); size = m.size; }
     else {
       const b = pl.build(p), keys = b.kind === "flat" ? b.keys(+open.value) : b.keys(), H = 45;
-      const s = surface(keys, H);
+      const s = surface(keys, H, b.kind === "curtain" ? +morphEl.value / 100 : 1);
       group.add(new THREE.Mesh(s.g, front), new THREE.Mesh(s.g, back));
       const lines = new THREE.Group(); lines.name = "lines";
       const cM = new THREE.Color(css("--mountain")).getHex(), cV = new THREE.Color(css("--valley")).getHex(), cS = new THREE.Color(css("--stitch")).getHex();
@@ -466,24 +515,25 @@ for (const pl of pleats) {
         for (const mk of keys[0].marks) lines.add(lineAlong(s.pos, s.rows, s.cols, mk.i, 0, r1, cS, true));
         const loopN = (b.period.length - 1) * SUB;
         for (const mk of keys[0].marks) lines.add(lineAlong(s.pos, s.rows, s.cols, mk.i - loopN, 0, r1, cS, true));
+        if (pl.pinch) for (const mk of keys[0].marks) {
+          const pts = []; for (let c = mk.i - loopN; c <= mk.i; c++) { const i = (r1 * s.cols + c) * 3; pts.push(new THREE.Vector3(s.pos[i], s.pos[i + 1], s.pos[i + 2] + 0.08)); }
+          lines.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x1d4d2f })));
+        }
       }
       lines.visible = document.getElementById("showLines").checked;
       group.add(lines);
       const bb = new THREE.Box3().setFromObject(group); size = Math.max(bb.max.x - bb.min.x, 45);
     }
     scene.add(group);
-    const bb = new THREE.Box3().setFromObject(group), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
-    controls.target.copy(c);
-    const fit = Math.max(sz.x / camera.aspect, sz.y, 8), dist = fit / (2 * Math.tan(17.5 * D2R)) * 1.25;
-    const low = pl.id === "motif" ? 0.25 : -0.45;
-    camera.position.set(c.x + dist * 0.42, c.y + dist * low, c.z + dist * 0.8);
-    controls.update();
+    morphEl.disabled = pl.build(p).kind !== "curtain";
+    lastBox = new THREE.Box3().setFromObject(group); lastPl = { kind: pl.id === "motif" ? "motif" : "x" };
+    if (!keepCam) view(pl.id === "goblet" || pl.id === "cartridge" ? "close" : "angle");
   };
   document.getElementById("showLines").addEventListener("change", e => { const l = group && group.getObjectByName("lines"); if (l) l.visible = e.target.checked; });
   pick.addEventListener("change", () => window.load3d(pick.value));
   const size = () => { const w = host.clientWidth, h = host.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
   new ResizeObserver(size).observe(host); size();
-  window.load3d("organ");
+  window.load3d("goblet");
   (function tick() { requestAnimationFrame(tick); controls.update(); renderer.render(scene, camera); })();
 })();
 </script>
