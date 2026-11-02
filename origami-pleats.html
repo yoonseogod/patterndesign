@@ -68,6 +68,9 @@ canvas { width: 100%; height: 280px; display: block; background: var(--bg); bord
 button { font: inherit; font-size: 0.85rem; border: 1px solid var(--ink); background: transparent; color: var(--ink); border-radius: 3px; padding: 4px 12px; cursor: pointer; }
 .hint { font-size: 0.78rem; color: var(--muted); }
 
+.badge { font-size: 0.78rem; font-family: var(--body); padding: 3px 9px; border-radius: 3px; align-self: flex-start; background: var(--chip); color: var(--muted); }
+.badge[data-s="ok"] { color: var(--accent); }
+.badge[data-s="warn"] { color: var(--mountain); }
 .adv-head { margin: 44px 0 16px; display: flex; flex-direction: column; gap: 6px; }
 .method { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
 @media (max-width: 760px) { .method { grid-template-columns: 1fr; } }
@@ -244,6 +247,56 @@ function miuraVerts(cols, rows, a, b, g, th) {
 
 function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
 
+// BEGIN verify
+// Local flat-foldability check at every interior vertex: Kawasaki (alternating angles sum to 180°),
+// Maekawa (|M − V| = 2) and big-little-big (a strictly smallest sector has opposite creases).
+function verifyCP(lines, inside) {
+  const segs = lines.filter(l => l.a), E = 1e-6, pts = [];
+  for (const s of segs) pts.push(s.a, s.b);
+  const X = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) {
+    const A = segs[i], B = segs[j], d1 = X(A.a, A.b, B.a), d2 = X(A.a, A.b, B.b), d3 = X(B.a, B.b, A.a), d4 = X(B.a, B.b, A.b);
+    if (d1 * d2 < -E && d3 * d4 < -E) { const t = d3 / (d3 - d4); pts.push([A.a[0] + t * (A.b[0] - A.a[0]), A.a[1] + t * (A.b[1] - A.a[1])]); }
+  }
+  const seen = new Set(); let n = 0, bad = 0;
+  for (const p of pts) {
+    const k = p.map(v => Math.round(v * 200)).join(","); if (seen.has(k)) continue; seen.add(k);
+    if (!inside(p)) continue;
+    const star = [];
+    for (const s of segs) {
+      const L = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]); if (L < 1e-9) continue;
+      const t = ((p[0] - s.a[0]) * (s.b[0] - s.a[0]) + (p[1] - s.a[1]) * (s.b[1] - s.a[1])) / (L * L);
+      const dist = Math.abs(X(s.a, s.b, p)) / L; if (dist > 0.01 || t < -0.001 || t > 1.001) continue;
+      const ang = Math.atan2(s.b[1] - s.a[1], s.b[0] - s.a[0]);
+      if (t * L > 0.01) star.push({ ang: ang + Math.PI, t: s.t });
+      if ((1 - t) * L > 0.01) star.push({ ang, t: s.t });
+    }
+    if (star.length < 2) continue;
+    n++;
+    star.forEach(s => s.ang = (s.ang + 4 * Math.PI) % (2 * Math.PI)); star.sort((a, b) => a.ang - b.ang);
+    const sec = star.map((s, i) => ((star[(i + 1) % star.length].ang - s.ang) + 2 * Math.PI) % (2 * Math.PI) || 2 * Math.PI);
+    const alt = sec.reduce((acc, s, i) => acc + (i % 2 ? -s : s), 0);
+    const m = star.filter(s => s.t === "M").length;
+    const blb = sec.every((s, i) => { const pr = sec[(i - 1 + sec.length) % sec.length], nx = sec[(i + 1) % sec.length];
+      return !(s < pr - 1e-6 && s < nx - 1e-6) || star[i].t !== star[(i + 1) % star.length].t; });
+    if (star.length % 2 || Math.abs(alt) > 1e-4 || Math.abs(2 * m - star.length) !== 2 || !blb) bad++;
+  }
+  return { n, bad };
+}
+// END verify
+
+const probe = document.createElement("canvas").getContext("2d");
+function showBadge(badge, cp) {
+  if (cp.lines.some(l => l.circle)) { badge.dataset.s = "curve"; badge.textContent = "곡선 주름 · 평면으로 접히지 않고 입체로 휘어요"; return; }
+  const path = new Path2D(cp.paper);
+  probe.lineWidth = 1.2;
+  const inside = p => probe.isPointInPath(path, p[0], p[1], "evenodd") && !probe.isPointInStroke(path, p[0], p[1]);
+  const { n, bad } = verifyCP(cp.lines, inside);
+  if (n === 0) { badge.dataset.s = "ok"; badge.textContent = "✓ 주름선끼리 만나지 않아 그대로 접혀요"; }
+  else if (bad === 0) { badge.dataset.s = "ok"; badge.textContent = `✓ 꼭짓점 ${n}개 모두 평평하게 접히는 조건 통과`; }
+  else { badge.dataset.s = "warn"; badge.textContent = `△ 꼭짓점 ${n}개 중 ${bad}개는 면이 휘거나 늘어나야 접혀요`; }
+}
+
 let clipSeq = 0;
 function drawCP(svg, cp) {
   svg.innerHTML = "";
@@ -298,8 +351,12 @@ function addCard(p, container) {
   const card = document.createElement("article"); card.className = "card";
   card.innerHTML = `<div class="card-head"><h3>${p.name} <span class="en">${p.en}</span></h3><span class="lvl">${p.lvl}</span></div>`;
   const svg = el("svg", { class: "cp", role: "img", "aria-label": `${p.name} 접기 도면` }, card);
-  let prof = null;
-  const render = v => { const cp = p.build(v); drawCP(svg, cp); if (prof) drawProfile(prof, cp); };
+  const badge = document.createElement("span"); badge.className = "badge"; card.appendChild(badge);
+  let prof = null, timer = 0;
+  const render = v => {
+    const cp = p.build(v); drawCP(svg, cp); if (prof) drawProfile(prof, cp);
+    clearTimeout(timer); timer = setTimeout(() => showBadge(badge, cp), 120);
+  };
   if (["accordion", "knife", "box"].includes(p.id)) {
     const cap = document.createElement("span"); cap.className = "hint"; cap.textContent = "옆에서 본 접힌 모양";
     prof = el("svg", { class: "profile", role: "img", "aria-label": "옆에서 본 단면" });
@@ -429,6 +486,136 @@ const advanced = [
     }
   }
 ];
+// BEGIN tiling
+// General twist tessellation from an edge-to-edge tiling whose dual graph is bipartite.
+// Every tile is scaled/rotated about its centre by z = 1 - r·e^(-iα); shared edges become pleats.
+const S3 = Math.sqrt(3);
+const TILINGS = {
+  rect: ar => ({ t1: [ar, 0], t2: [0, 1], cell: [[[0, 0], [ar, 0], [ar, 1], [0, 1]]] }),
+  kagome: () => ({ t1: [2, 0], t2: [1, S3], cell: [
+    Array.from({ length: 6 }, (_, k) => [Math.cos(k * Math.PI / 3), Math.sin(k * Math.PI / 3)]),
+    [[1, 0], [1.5, S3 / 2], [0.5, S3 / 2]],
+    [[-0.5, S3 / 2], [0.5, S3 / 2], [0, S3]] ] }),
+  rhombitri: () => {
+    const v = k => [Math.cos(k * Math.PI / 3), Math.sin(k * Math.PI / 3)], nrm = k => [Math.cos(Math.PI / 6 + k * Math.PI / 3), Math.sin(Math.PI / 6 + k * Math.PI / 3)];
+    const ad = (a, b) => [a[0] + b[0], a[1] + b[1]], d = 1 + S3;
+    const cell = [Array.from({ length: 6 }, (_, k) => v(k))];
+    for (let k = 0; k < 3; k++) cell.push([v(k), ad(v(k), nrm(k)), ad(v(k + 1), nrm(k)), v(k + 1)]);
+    for (const k of [1, 2]) cell.push([v(k), ad(v(k), nrm(k - 1)), ad(v(k), nrm(k))]);
+    return { t1: [d * Math.cos(Math.PI / 6), d * Math.sin(Math.PI / 6)], t2: [0, d], cell };
+  }
+};
+function tilingTwist(T, edge, alphaDeg, r, W, H) {
+  const al = alphaDeg * Math.PI / 180, zx = 1 - r * Math.cos(al), zy = r * Math.sin(al);
+  const key = p => p.map(v => Math.round(v * 1000)).join(",");
+  const polys = [], N = Math.ceil(Math.max(W, H) / (edge * Math.min(Math.hypot(...T.t1), Math.hypot(...T.t2)))) + 3;
+  for (let i = -N; i <= N; i++) for (let j = -N; j <= N; j++) for (const cp of T.cell) {
+    const P = cp.map(([x, y]) => [W / 2 + edge * (x + i * T.t1[0] + j * T.t2[0]), H / 2 + edge * (y + i * T.t1[1] + j * T.t2[1])]);
+    const c = [P.reduce((s, p) => s + p[0], 0) / P.length, P.reduce((s, p) => s + p[1], 0) / P.length];
+    if (c[0] > -3 * edge && c[0] < W + 3 * edge && c[1] > -3 * edge && c[1] < H + 3 * edge) polys.push({ P, c });
+  }
+  const edges = new Map();
+  polys.forEach((q, pi) => q.P.forEach((u, k) => {
+    const v = q.P[(k + 1) % q.P.length], kk = [key(u), key(v)].sort().join("|");
+    if (!edges.has(kk)) edges.set(kk, []); edges.get(kk).push({ pi, k });
+  }));
+  // two-colour the tiles (bipartite dual)
+  const par = new Array(polys.length).fill(-1), adj = polys.map(() => []);
+  for (const e of edges.values()) if (e.length === 2) { adj[e[0].pi].push(e[1].pi); adj[e[1].pi].push(e[0].pi); }
+  for (let s = 0; s < polys.length; s++) if (par[s] < 0) { par[s] = 0; const q = [s]; while (q.length) { const a = q.shift(); for (const b of adj[a]) if (par[b] < 0) { par[b] = 1 - par[a]; q.push(b); } } }
+  const img = (q, p) => { const dx = p[0] - q.c[0], dy = p[1] - q.c[1]; return [q.c[0] + zx * dx - zy * dy, q.c[1] + zy * dx + zx * dy]; };
+  const flip = (t, pr) => pr ? (t === "M" ? "V" : "M") : t, opp = t => t === "M" ? "V" : "M";
+  const segs = [];
+  polys.forEach((q, pi) => q.P.forEach((u, k) => segs.push({ a: img(q, u), b: img(q, q.P[(k + 1) % q.P.length]), t: flip("M", par[pi]) })));
+  for (const e of edges.values()) {
+    if (e.length !== 2) continue;
+    const A = polys[e[0].pi], B = polys[e[1].pi], u = A.P[e[0].k], v = A.P[(e[0].k + 1) % A.P.length], te = flip("M", par[e[0].pi]);
+    for (const [p, o] of [[u, v], [v, u]]) {
+      const a = img(A, p), b = img(B, p), ao = img(A, o);
+      const dot = (b[0] - a[0]) * (ao[0] - a[0]) + (b[1] - a[1]) * (ao[1] - a[1]);
+      segs.push({ a, b, t: dot > 0 ? opp(te) : te });
+    }
+  }
+  return segs;
+}
+// END tiling
+
+advanced.push(
+  {
+    id: "kagome", name: "트라이헥사고날 트위스트", en: "Trihexagonal twist (3.6.3.6)", lvl: "고급+",
+    desc: "육각형 트위스트와 삼각형 트위스트가 번갈아 이어지는 패턴이에요. 육각형은 한쪽으로, 삼각형은 반대쪽으로 돌아가요. 일본 바구니 짜임(가고메)과 같은 배열이에요.",
+    use: "한지처럼 비치는 종이나 오간자로 만들면 육각형과 삼각형의 겹 차이가 별 무늬로 보여요.",
+    tip: "육각형 하나를 먼저 완성하고, 주변 삼각형 6개를 반대 방향으로 비틀어 이어가요.",
+    params: [{ id: "e", label: "변 길이", min: 6, max: 16, step: 0.5, v: 12 }, { id: "a", label: "플리츠 각도", min: 32, max: 50, step: 1, v: 40 }, { id: "r", label: "플리츠 폭", min: 0.25, max: 0.6, step: 0.05, v: 0.4 }],
+    build: p => rectCP(100, 100, tilingTwist(TILINGS.kagome(), p.e, p.a, p.r, 100, 100))
+  },
+  {
+    id: "rhombi", name: "롬비트라이헥사고날 트위스트", en: "Rhombitrihexagonal twist (3.4.6.4)", lvl: "고급+",
+    desc: "육각형, 정사각형, 삼각형 세 종류의 트위스트가 한 판에 들어가요. 이 페이지에서 가장 선이 많은 패턴이에요.",
+    use: "꽃처럼 반복되는 큰 무늬가 생겨요. 드레스 전면, 스테이트먼트 소매처럼 넓게 보이는 부위에 써 보세요.",
+    tip: "도면을 A2 이상으로 크게 출력하고, 육각형 중심부터 사각형, 삼각형 순서로 모아요.",
+    params: [{ id: "e", label: "변 길이", min: 5, max: 14, step: 0.5, v: 9 }, { id: "a", label: "플리츠 각도", min: 32, max: 50, step: 1, v: 38 }, { id: "r", label: "플리츠 폭", min: 0.25, max: 0.6, step: 0.05, v: 0.4 }],
+    build: p => rectCP(100, 100, tilingTwist(TILINGS.rhombitri(), p.e, p.a, p.r, 100, 100))
+  },
+  {
+    id: "weave", name: "직사각형 위브 트위스트", en: "Rectangle weave", lvl: "고급",
+    desc: "정사각형 대신 직사각형을 비틀면 가로와 세로 플리츠 폭이 달라져서, 다 접은 면이 바구니를 짠 것처럼 보여요.",
+    use: "가로세로 비율을 바꾸면 체크, 헤링본 직물 같은 느낌이 나요. 재킷 패널, 가방에 잘 어울려요.",
+    tip: "긴 변 쪽 플리츠를 먼저 접고 짧은 변 쪽을 접으면 덜 헷갈려요.",
+    params: [{ id: "e", label: "높이", min: 8, max: 16, step: 0.5, v: 11 }, { id: "ar", label: "가로 비율", min: 1.2, max: 2.5, step: 0.1, v: 1.7 }, { id: "a", label: "플리츠 각도", min: 12, max: 40, step: 1, v: 25 }, { id: "r", label: "플리츠 폭", min: 0.2, max: 0.6, step: 0.05, v: 0.4 }],
+    build: p => rectCP(100, 100, tilingTwist(TILINGS.rect(p.ar), p.e, p.a, p.r, 100, 100))
+  },
+  {
+    id: "gmiura", name: "그라데이션 미우라", en: "Graded Miura-ori", lvl: "고급",
+    desc: "미우라 접기의 지그재그 폭을 위에서 아래로 조금씩 바꿨어요. 줄마다 줄어드는 정도가 달라서 다 접으면 판이 부채꼴로 휘어요.",
+    use: "위아래 수축률이 달라서 어깨에서 소매로, 허리에서 밑단으로 넓어지는 부위에 자연스럽게 맞아요.",
+    tip: "위쪽과 아래쪽 값의 부호를 다르게 하면 중간에서 지그재그 방향이 뒤집혀요.",
+    params: [{ id: "c", label: "칸 수", min: 6, max: 16, step: 2, v: 10 }, { id: "rws", label: "줄 수", min: 6, max: 16, step: 2, v: 10 }, { id: "t", label: "위쪽 지그재그", min: -0.8, max: 0.8, step: 0.05, v: 0.15 }, { id: "b", label: "아래쪽 지그재그", min: -0.8, max: 0.8, step: 0.05, v: 0.7 }],
+    build: p => {
+      const W = 100, cw = W / p.c, rh = 66 / p.rws, lines = [];
+      const amp = j => (p.t + (p.b - p.t) * j / p.rws) * rh;
+      const V = (i, j) => [i * cw, j * rh + (i % 2) * amp(j) + 0.8 * rh];
+      for (let i = 0; i <= p.c; i++) for (let j = 0; j <= p.rws; j++) {
+        if (i < p.c && j > 0 && j < p.rws) lines.push({ a: V(i, j), b: V(i + 1, j), t: j % 2 ? "M" : "V" });
+        if (j < p.rws && i > 0 && i < p.c) lines.push({ a: V(i, j), b: V(i, j + 1), t: (i + j) % 2 ? "M" : "V" });
+      }
+      const top = Array.from({ length: p.c + 1 }, (_, i) => V(i, 0)), bot = Array.from({ length: p.c + 1 }, (_, i) => V(p.c - i, p.rws));
+      return { w: W, h: 66 + 1.6 * rh, paper: `M${top.concat(bot).map(q => q.join(" ")).join("L")}Z`, lines };
+    }
+  },
+  {
+    id: "spiral", name: "나선 트위스트", en: "Spiral n-gon twist", lvl: "고급",
+    desc: "가운데 다각형 하나를 비틀면 모든 변에서 플리츠가 나와 종이 끝까지 소용돌이처럼 퍼져요. 트위스트 테셀레이션의 기본 단위를 크게 키운 거예요.",
+    use: "스커트 밑단이나 케이프를 위에서 봤을 때 나선이 보이게 만들 수 있어요. 가운데 다각형을 허리나 목둘레 자리에 두세요.",
+    tip: "플리츠를 하나씩 눕히면서 가운데 다각형을 손가락으로 눌러 돌려요. 변의 수가 많을수록 플리츠가 얇아져요. 배지가 △로 바뀌면 비틀림 각도를 조절해 보세요.",
+    params: [{ id: "n", label: "변의 수", min: 3, max: 12, step: 1, v: 8 }, { id: "s", label: "변 길이", min: 6, max: 20, step: 0.5, v: 10 }, { id: "a", label: "비틀림 각도", min: 5, max: 60, step: 1, v: 35 }],
+    build: p => {
+      const al = p.a * Math.PI / 180, R = p.s / (2 * Math.sin(Math.PI / p.n)), segs = [];
+      const P = Array.from({ length: p.n }, (_, k) => { const t = -Math.PI / 2 - Math.PI / p.n + 2 * Math.PI * k / p.n; return [50 + R * Math.cos(t), 50 + R * Math.sin(t)]; });
+      for (let k = 0; k < p.n; k++) {
+        const a = P[k], b = P[(k + 1) % p.n], nx = (a[0] + b[0]) / 2 - 50, ny = (a[1] + b[1]) / 2 - 50, nl = Math.hypot(nx, ny);
+        const d = [(nx * Math.cos(al) - ny * Math.sin(al)) / nl * 200, (nx * Math.sin(al) + ny * Math.cos(al)) / nl * 200];
+        segs.push({ a, b, t: "M" }, { a, b: [a[0] + d[0], a[1] + d[1]], t: "V" }, { a: b, b: [b[0] + d[0], b[1] + d[1]], t: "M" });
+      }
+      return rectCP(100, 100, segs);
+    }
+  },
+  {
+    id: "ngon", name: "다각형 하이퍼", en: "Pleated n-gon hypar", lvl: "고급",
+    desc: "하이퍼볼릭 파라볼로이드를 정사각형이 아닌 다각형으로 바꿨어요. 오각형부터는 말안장 대신 가장자리가 물결치는 꽃 모양이 돼요.",
+    use: "변의 수가 곧 물결 수예요. 러플 칼라, 페플럼, 모자 챙에 좋아요.",
+    tip: "모든 링을 접은 뒤 꼭짓점에서 꼭짓점으로 가는 선을 눌러 모으면 저절로 물결이 생겨요.",
+    params: [{ id: "n", label: "변의 수", min: 3, max: 8, step: 1, v: 5 }, { id: "k", label: "링 수", min: 4, max: 14, step: 1, v: 8 }],
+    build: p => {
+      const c = 50, R = 48, ring = k => (k % 2 ? "M" : "V"), lines = [];
+      const pt = (r, i) => { const a = -Math.PI / 2 + 2 * Math.PI * i / p.n; return [c + r * Math.cos(a), c + r * Math.sin(a)]; };
+      for (let k = 1; k < p.k; k++) for (let i = 0; i < p.n; i++) lines.push({ a: pt(R * k / p.k, i), b: pt(R * k / p.k, i + 1), t: ring(k) });
+      for (let k = 0; k < p.k; k++) for (let i = 0; i < p.n; i++) lines.push({ a: pt(R * k / p.k, i), b: pt(R * (k + 1) / p.k, i), t: ring(k) });
+      const outer = Array.from({ length: p.n }, (_, i) => pt(R, i));
+      return { w: 100, h: 100, paper: `M${outer.map(q => q.join(" ")).join("L")}Z`, lines };
+    }
+  }
+);
 advanced.forEach(p => addCard(p, document.getElementById("grid2")));
 
 // Miura card (wide, with 3D)
