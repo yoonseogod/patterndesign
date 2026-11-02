@@ -143,13 +143,16 @@ function piecesProfile(pieces, K) {
 }
 // pressed pleats: walk along the fabric, turning at each fold (M turns away from the viewer)
 function turtle(seq, open) {
-  const pts = [[0, 0]], marks = []; let dir = 0;
+  const pts = [[0, 0]], marks = [], zone = [0]; let dir = 0;
   for (const s of seq) {
     const o = pts[pts.length - 1];
-    for (let k = 1; k <= SUB; k++) pts.push([o[0] + s.len * k / SUB * Math.cos(dir), o[1] + s.len * k / SUB * Math.sin(dir)]);
+    for (let k = 1; k <= SUB; k++) { pts.push([o[0] + s.len * k / SUB * Math.cos(dir), o[1] + s.len * k / SUB * Math.sin(dir)]); zone.push(s.h ? 1 : 0); }
     if (s.t) { marks.push({ i: pts.length - 1, t: s.t }); dir += (s.t === "M" ? -1 : 1) * (Math.PI - open * D2R); }
   }
-  return { pts, marks };
+  // pressed layers step slightly at every pleat; take out that slope so the pleats lie on one plane
+  const e = pts[pts.length - 1], ang = Math.atan2(e[1], e[0]), ca = Math.cos(-ang), sa = Math.sin(-ang);
+  pts.forEach(p => { const x = p[0], z = p[1]; p[0] = x * ca - z * sa; p[1] = x * sa + z * ca; });
+  return { pts, marks, zone };
 }
 const repeat = (seq, K) => Array.from({ length: K }, () => seq).flat();
 function rng(seed) { let s = seed * 9301 + 49297; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
@@ -158,7 +161,7 @@ function rng(seed) { let s = seed * 9301 + 49297; return () => { s = (s * 9301 +
 const pressed = (seq, K, accordion) => ({
   kind: "flat", seq: repeat(seq, K),
   keys: open => {
-    const top = accordion ? 30 : 5, s = repeat(seq, K);
+    const top = accordion ? 30 : 5, s = [...repeat(seq, K), { len: seq[0].len, t: null }];
     return [{ v: 0, ...turtle(s, top) }, { v: 12, ...turtle(s, top) }, { v: 45, ...turtle(s, Math.max(top, open)) }];
   }
 });
@@ -170,7 +173,7 @@ const pleats = [
     desc: "모든 주름이 한쪽 방향으로 누워요. 겉으로 보이는 폭과 안으로 접혀 들어가는 깊이 두 가지만 정하면 돼요.",
     use: "교복 스커트, 킬트, 블라우스 앞단. 깊이를 겉폭과 같게 하면 원단이 세 겹이 돼요.",
     params: [{ id: "w", label: "겉폭", min: 2, max: 8, step: 0.5, v: 4 }, { id: "d", label: "깊이", min: 1, max: 6, step: 0.5, v: 3 }],
-    build: p => pressed([{ len: p.w, t: "M" }, { len: p.d, t: "V" }, { len: p.d, t: null }], 8),
+    build: p => pressed([{ len: p.w, t: "M" }, { len: p.d, t: "V", h: 1 }, { len: p.d, t: null, h: 1 }], 8),
     calc: p => ({ unit: p.w + 2 * p.d, finish: p.w })
   },
   {
@@ -178,7 +181,7 @@ const pleats = [
     desc: "주름 양쪽이 서로 반대로 접혀 겉에 상자 모양 면이 도드라져요. 상자 사이에는 납작한 바탕이 보여요.",
     use: "A라인 스커트, 셔츠 등판 가운데, 원피스 앞판.",
     params: [{ id: "b", label: "상자 사이 간격", min: 0, max: 8, step: 0.5, v: 2 }, { id: "w", label: "상자 폭", min: 3, max: 10, step: 0.5, v: 6 }, { id: "d", label: "깊이", min: 1, max: 4, step: 0.5, v: 2.5 }],
-    build: p => pressed([{ len: p.b + 2 * p.d, t: "V" }, { len: p.d, t: "M" }, { len: p.w, t: "M" }, { len: p.d, t: "V" }], 5),
+    build: p => pressed([{ len: p.b + 2 * p.d, t: "V" }, { len: p.d, t: "M", h: 1 }, { len: p.w, t: "M" }, { len: p.d, t: "V", h: 1 }], 5),
     calc: p => ({ unit: p.b + p.w + 4 * p.d, finish: p.b + p.w, note: "상자 양쪽으로 깊이만큼씩 접혀 들어가서, 주름 1개에 깊이의 4배가 숨어요." })
   },
   {
@@ -186,7 +189,7 @@ const pleats = [
     desc: "박스주름을 뒤집은 모양이에요. 두 접힘선이 겉에서 맞닿고, 안쪽에 덧단처럼 원단이 숨어 있어요.",
     use: "스커트 앞·뒤 중심, 재킷 뒤트임, 앞치마. 움직일 때만 안쪽이 살짝 보여요.",
     params: [{ id: "w", label: "겉폭", min: 4, max: 14, step: 0.5, v: 8 }, { id: "d", label: "깊이", min: 1, max: 5, step: 0.5, v: 3 }],
-    build: p => pressed([{ len: p.w, t: "M" }, { len: p.d, t: "V" }, { len: 2 * p.d, t: "V" }, { len: p.d, t: "M" }], 4),
+    build: p => pressed([{ len: p.w, t: "M" }, { len: p.d, t: "V", h: 1 }, { len: 2 * p.d, t: "V", h: 1 }, { len: p.d, t: "M", h: 1 }], 4),
     calc: p => ({ unit: p.w + 4 * p.d, finish: p.w })
   },
   {
@@ -262,7 +265,7 @@ const pleats = [
       for (let i = 0; i < 9; i++) {
         if (r() < 0.25 * p.mix) dir = -dir;
         const w = p.w * (1 + p.mix * (r() - 0.5) * 1.4), d = p.w * 0.7 * (1 + p.mix * (r() - 0.5) * 1.6);
-        seq.push({ len: w, t: dir > 0 ? "M" : "V" }, { len: d, t: dir > 0 ? "V" : "M" }, { len: d, t: null });
+        seq.push({ len: w, t: dir > 0 ? "M" : "V" }, { len: d, t: dir > 0 ? "V" : "M", h: 1 }, { len: d, t: null, h: 1 });
       }
       return pressed(seq, 1); },
     calc: p => ({ unit: p.w * 2.4, finish: p.w, note: "주름마다 분량이 달라서 평균 값으로 계산했어요." })
@@ -273,9 +276,9 @@ const pleats = [
     use: "방향 반전은 스커트 앞중심, 점점 깊어지는 주름은 밑단으로 갈수록 퍼지는 실루엣, 묶음 주름은 리듬감 있는 스커트나 블라우스 앞판에 써요.",
     params: [{ id: "type", label: "변형 (1·2·3)", min: 1, max: 3, step: 1, v: 1 }, { id: "w", label: "겉폭", min: 2, max: 8, step: 0.5, v: 4 }, { id: "d", label: "깊이", min: 1, max: 5, step: 0.5, v: 2.5 }],
     build: p => { const seq = [];
-      if (p.type === 1) for (let i = 0; i < 8; i++) { const r = i >= 4; seq.push({ len: p.w, t: r ? "V" : "M" }, { len: p.d, t: r ? "M" : "V" }, { len: p.d, t: null }); }
-      else if (p.type === 2) for (let i = 0; i < 8; i++) { const d = p.d * (0.4 + i * 0.25); seq.push({ len: p.w, t: "M" }, { len: d, t: "V" }, { len: d, t: null }); }
-      else for (let i = 0; i < 9; i++) seq.push({ len: i % 3 === 0 && i > 0 ? p.w * 3 : p.w * 0.6, t: "M" }, { len: p.d, t: "V" }, { len: p.d, t: null });
+      if (p.type === 1) for (let i = 0; i < 8; i++) { const r = i >= 4; seq.push({ len: p.w, t: r ? "V" : "M" }, { len: p.d, t: r ? "M" : "V", h: 1 }, { len: p.d, t: null, h: 1 }); }
+      else if (p.type === 2) for (let i = 0; i < 8; i++) { const d = p.d * (0.4 + i * 0.25); seq.push({ len: p.w, t: "M" }, { len: d, t: "V", h: 1 }, { len: d, t: null, h: 1 }); }
+      else for (let i = 0; i < 9; i++) seq.push({ len: i % 3 === 0 && i > 0 ? p.w * 3 : p.w * 0.6, t: "M" }, { len: p.d, t: "V", h: 1 }, { len: p.d, t: null, h: 1 });
       return pressed(seq, 1); },
     typeName: t => ["", "가운데서 방향 반전", "점점 깊어지는 주름", "3개씩 묶은 외주름"][t],
     calc: p => ({ unit: p.w + 2 * p.d, finish: p.w, note: p.type === 2 ? "깊이가 주름마다 달라서 첫 주름 기준으로 계산했어요." : p.type === 3 ? "묶음 안의 주름은 겉폭의 0.6배, 묶음 사이는 3배로 잡았어요. 계산은 기본 외주름 기준이에요." : "" })
@@ -366,7 +369,12 @@ function drawSection(box, pl, p, open) {
   box.innerHTML = "";
   if (pl.id === "motif") { box.hidden = true; return; }
   const b = pl.build(p);
-  if (b.kind === "flat") { const t = turtle(b.seq.slice(0, Math.min(b.seq.length, 12)), Math.max(open, 6)); box.appendChild(sectionSVG(t.pts, null, "밑단에서 본 단면")); return; }
+  if (b.kind === "flat") {
+    const sq = b.seq.slice(0, Math.min(b.seq.length, 12));
+    box.classList.add("multi");
+    const a = turtle(sq, 6), c = turtle(sq, Math.max(open, 6));
+    box.appendChild(sectionSVG(a.pts, a.zone, "박은 곳 (눌러 접힘)")); box.appendChild(sectionSVG(c.pts, c.zone, `밑단 (${Math.round(Math.max(open, 6))}° 벌어짐)`)); return;
+  }
   const keys = b.keys(), n = b.period.length * SUB * 2 + 1, hd = typeof pl.heading === "function" ? pl.heading(p) : pl.heading;
   const pickKey = v => keys.reduce((best, k) => Math.abs(k.v - v) < Math.abs(best.v - v) ? k : best, keys[0]);
   const rows = pl.stitch === "full" ? [[0, "맨 위"], [45, "밑단"]] : [[0, "맨 위"], [hd, pl.pinch ? "박음 끝 (집은 곳)" : "박음 끝"], [45, "밑단"]];
@@ -381,7 +389,7 @@ for (const pl of pleats) {
   card.innerHTML = `<div class="card-head"><span class="no">${pl.no}</span><h3>${pl.name} <span class="en">${pl.en}</span></h3></div>
     <span class="lbl">원단 제도</span>`;
   const draft = el("svg", { class: "draft", role: "img", "aria-label": pl.name + " 원단 제도" }, card);
-  const sl = document.createElement("span"); sl.className = "lbl"; sl.textContent = pl.id === "motif" ? "" : "단면 (위에서 내려다본 모양 · 파란 선이 주름 분량)";
+  const sl = document.createElement("span"); sl.className = "lbl"; sl.textContent = pl.id === "motif" ? "" : "높이별 단면 (위에서 내려다본 모양 · 파란 선은 주름 분량)";
   card.appendChild(sl);
   const sec = document.createElement("div"); sec.className = "secs"; card.appendChild(sec);
   const calc = document.createElement("div"); calc.className = "calc";
@@ -392,7 +400,7 @@ for (const pl of pleats) {
     calc.innerHTML = (pl.typeName ? `<div>변형: <b>${pl.typeName(vals.type)}</b></div>` : "") +
       (pl.id === "motif" ? `<div>${c.note}</div>` :
       `<div>주름 1개에 원단 <b>${fmt(c.unit)}cm</b> → 완성 <b>${fmt(c.finish)}cm</b>, 원단 배수 <b>${ratio > 50 ? "50+" : fmt(ratio)}배</b></div>
-       <div>완성폭 60cm(스커트 반 둘레)라면 원단 약 <b>${ratio > 50 ? "—" : Math.round(60 * ratio)}cm</b></div>` + (c.note ? `<div class="hint">${c.note}</div>` : ""));
+       <div>완성폭 60cm라면 원단 약 <b>${ratio > 50 ? "—" : Math.round(60 * ratio)}cm</b> <span class="hint">(시접·여유분 제외)</span></div>` + (c.note ? `<div class="hint">${c.note}</div>` : ""));
   };
   for (const q of pl.params) {
     vals[q.id] = q.v;
@@ -436,8 +444,9 @@ for (const pl of pleats) {
     let mx = 0; keys[0].pts.forEach(q => mx += q[0]); mx /= cols;
     for (let r = 0; r < rows; r++) {
       const v = H * r / (rows - 1), [a, b, t] = at(v);
+      let rm = 0; for (let c = 0; c < cols; c++) rm += a.pts[c][0] * (1 - t) + b.pts[c][0] * t; rm /= cols;
       for (let c = 0; c < cols; c++) {
-        const i = (r * cols + c) * 3, fx = a.pts[c][0] * (1 - t) + b.pts[c][0] * t - mx, fz = a.pts[c][1] * (1 - t) + b.pts[c][1] * t;
+        const i = (r * cols + c) * 3, fx = a.pts[c][0] * (1 - t) + b.pts[c][0] * t - rm, fz = a.pts[c][1] * (1 - t) + b.pts[c][1] * t;
         pos[i] = (flat[c] - fm) * (1 - m) + fx * m; pos[i + 1] = -v; pos[i + 2] = fz * m;
         const cc = zone[c] ? cz : cw; col[i] = cc.r; col[i + 1] = cc.g; col[i + 2] = cc.b;
       }
@@ -522,6 +531,10 @@ for (const pl of pleats) {
       }
       lines.visible = document.getElementById("showLines").checked;
       group.add(lines);
+      for (const row of [0, s.rows - 1]) {
+        const pts = []; for (let c = 0; c < s.cols; c++) { const i = (row * s.cols + c) * 3; pts.push(new THREE.Vector3(s.pos[i], s.pos[i + 1], s.pos[i + 2])); }
+        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x2a2f28 })));
+      }
       const bb = new THREE.Box3().setFromObject(group); size = Math.max(bb.max.x - bb.min.x, 45);
     }
     scene.add(group);
