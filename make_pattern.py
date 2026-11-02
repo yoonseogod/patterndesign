@@ -94,7 +94,7 @@ def side_dart(side, top_dist, tipx):
 
 pieces = []
 def piece(name, edges, **kw):
-    d = dict(name=name, edges=edges, marks=[], texts=[], grain=None, notches=[], dashed=[], quilt=False, applique=[])
+    d = dict(name=name, edges=edges, marks=[], texts=[], grain=None, notches=[], dashed=[], quilt=False, applique=[], guides=[], dartlabels=[])
     d.update(kw); pieces.append(d); return d
 
 # Front A: T -> SNP -> SP -> UA -> side -> hem -> style -> T
@@ -272,22 +272,98 @@ def compute(pc):
     xs = [p[0] for p in cut]; ys = [p[1] for p in cut]
     pc['bbox'] = (min(xs), min(ys), max(xs), max(ys))
 
-for pc in pieces: compute(pc)
-
-# notches: (piece, edge index, distance from edge start, count)
+# notches are stored as absolute points (survive panel splitting)
 def add_notch(pc, ei, dist, cnt=1):
-    pc['notches'].append((ei, dist, cnt))
-add_notch(FA, 2, plen(front_arm)-8, 1)          # SP->UA ; 8cm from UA
+    pc['notches'].append((at(pc['edges'][ei]['pts'], dist), cnt))
+add_notch(FA, 2, plen(front_arm)-8, 1)          # 8cm above UA
 add_notch(BL, 3, plen(back_arm)-9, 2)
-add_notch(SLV, 0, cap_len-(FAH and 0) - 8.3, 1)  # from front bicep 8.3
-add_notch(SLV, 0, 9.3, 2)                        # from back bicep
-add_notch(SLV, 0, cap_len*(BAH/AH)+0.3, 1)       # top / shoulder point
+add_notch(SLV, 0, cap_len - 8.3, 1)              # 8.3 from front bicep
+add_notch(SLV, 0, 9.3, 2)                        # 9.3 from back bicep
+add_notch(SLV, 0, cap_len*(BAH/AH)+0.3, 1)       # shoulder point
 add_notch(BL, 0, ZIP_END-CBN, 1); add_notch(BR, 3, (hem_b(0)-ZIP_END), 1)
-add_notch(FA, 5, plen(style_A)-plen(style_up)+0, 1)   # BP match
+add_notch(FA, 5, plen(style_A)-plen(style_up), 1)   # BP
 add_notch(FB, 1, plen(style_up), 1)
-add_notch(FA, 0, 0.0001, 0); 
-add_notch(FA, 5, plen(style_A)-plen(style_up)-16, 2)  # waist-ish match
+add_notch(FA, 5, plen(style_A)-plen(style_up)-16, 2)
 add_notch(FB, 1, plen(style_up)+16, 2)
+
+# ---------------------------------------------------------------- measurement guides & dart labels
+FA['dashed'] = []
+FA['guides'] = [('BL', [(-30, 26), (40, 26)]), ('WL', [(-30, 42), (40, 42)]), ('HL', [(-30, 60), (40, 60)]),
+                ('CF', [(0, -5), (0, 100)])]
+FA['dartlabels'] = [((12.4, 45.5), '다트 3.5'), ((17.2, 29.6), '다트 3.0')]
+FB['guides'] = [('BL', [(-30, 26), (0, 26)]), ('WL', [(-30, 42), (0, 42)]), ('HL', [(-30, 60), (0, 60)])]
+FB['dartlabels'] = [((-18.5, 30.6), '다트 3.0')]
+BL['guides'] = [('BL', [(0, 23), (30, 23)]), ('WL', [(0, 39.6), (30, 39.6)]), ('HL', [(0, 57), (30, 57)])]
+BL['dartlabels'] = [((13.6, 43), '다트 3.5')]
+BR['guides'] = [('BL', [(-30, 23), (0, 23)]), ('WL', [(-30, 39.6), (0, 39.6)]), ('HL', [(-30, 57), (0, 57)])]
+BR['dartlabels'] = [((-13.6, 43), '다트 3.5')]
+SLV['dashed'] = []
+SLV['guides'] = [('소매통', [(-40, cap), (40, cap)]), ('EL', [(-40, 34), (40, 34)])]
+SLV['texts'] = [((6.2, 24), ['5  소매 (왼쪽만)', '올리브 니트 x1', f'소매길이 {SL} · 소매산 {cap:.1f}']),
+                ((5.5, cap-0.6), ['F →']), ((-6.5, cap-0.6), ['← B'])]
+DRP['texts'] = [((52.5, 12.5), ['6  어깨 드레이프 (반쪽)', '체크 울 x1 · 바이어스', '중심선 기준 대칭 전개']),
+                ((DR_L-3.6, 10), ['셔링', '→10cm']), ((38.2, 21.6), ['SP'])]
+
+# ---------------------------------------------------------------- split front A into patchwork panels
+def split_piece(pc, p0, p1, tag):
+    segs = []
+    for ei, e in enumerate(pc['edges']):
+        P = e['pts']
+        for i in range(len(P)-1):
+            if math.dist(P[i], P[i+1]) > 1e-9: segs.append((P[i], P[i+1], e['sa'], ei))
+    L = LineString([p0, p1]); hits = []
+    for k, (a, b, sa, ei) in enumerate(segs):
+        x = LineString([a, b]).intersection(L)
+        if x.geom_type == 'Point':
+            q = (x.x, x.y)
+            if not any(math.dist(q, h[2]) < 1e-6 for h in hits):
+                hits.append((k, math.dist(a, q), q))
+    assert len(hits) == 2, (pc['name'], hits)
+    (k1, _, q1), (k2, _, q2) = sorted(hits)
+    def segs_between(ka, qa, kb, qb):
+        out = [(qa, segs[ka][1], segs[ka][2], segs[ka][3])]
+        k = (ka+1) % len(segs)
+        while k != kb:
+            out.append(segs[k]); k = (k+1) % len(segs)
+        out.append((segs[kb][0], qb, segs[kb][2], segs[kb][3]))
+        return [s for s in out if math.dist(s[0], s[1]) > 1e-6]
+    def to_edges(ss, close_from, close_to):
+        edges = []
+        for a, b, sa, ei in ss:
+            if edges and edges[-1]['_id'] == ei:
+                edges[-1]['pts'].append(b)
+            else:
+                edges.append(dict(pts=[a, b], sa=sa, _id=ei, n=pc['edges'][ei].get('n')))
+        edges.append(dict(pts=[close_from, close_to], sa=1, _id=('cut', tag), n='panel'))
+        return edges
+    out = []
+    for ss, cf, ct in ((segs_between(k1, q1, k2, q2), q2, q1), (segs_between(k2, q2, k1, q1), q1, q2)):
+        d = {k: v for k, v in pc.items() if k not in ('edges', 'seam', 'cut', 'bbox')}
+        d['edges'] = to_edges(ss, cf, ct)
+        d['notches'] = list(pc['notches']) + [(((q1[0]+q2[0])/2, (q1[1]+q2[1])/2), tag)]
+        out.append(d)
+    return out
+
+def centroid(pc):
+    pts = [p for e in pc['edges'] for p in e['pts']]
+    return Polygon(pts).centroid
+
+pieces.remove(FA)
+up, low = sorted(split_piece(FA, (-14, 35.2), (32, 32.2), 1), key=lambda p: centroid(p).y)
+A1, A2 = sorted(split_piece(up, (0.6, -2), (5.6, 40), 2), key=lambda p: centroid(p).x)
+A3, low2 = sorted(split_piece(low, (-16, 67.4), (32, 57.0), 2), key=lambda p: centroid(p).y)
+A4, A5 = sorted(split_piece(low2, (1.0, 50), (15.0, 100), 1), key=lambda p: centroid(p).x)
+FRONT_PANELS = [('1-1', '앞판 A-1 (상단 중앙)', A1), ('1-2', '앞판 A-2 (상단 옆)', A2),
+                ('1-3', '앞판 A-3 (중단)', A3), ('1-4', '앞판 A-4 (하단 중앙)', A4), ('1-5', '앞판 A-5 (하단 옆)', A5)]
+for code, nm, p in FRONT_PANELS:
+    p['name'] = code + '  ' + nm.split(' (')[0]
+    p['code'] = code; p['label'] = [code + '  ' + nm.split(' ')[0] + ' ' + nm.split(' ')[1], nm.split(' ', 2)[2] if nm.count(' ') > 1 else '', '퀼팅 x1 (겉면 위로)']
+    p['texts'] = [t for t in FA['texts'] if t[1] == ['CF'] and Polygon([q for e in p['edges'] for q in e['pts']]).contains(Point(t[0]))]
+    p['autolabel'] = True; p['grain'] = 'auto'
+    pieces.insert(0, p)
+pieces.sort(key=lambda p: p['name'])
+
+for pc in pieces: compute(pc)
 
 neck_total = plen(neck_f) + plen(neck_bL) + plen(neck_bR)
 

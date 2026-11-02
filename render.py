@@ -1,6 +1,6 @@
 """Render the dress pattern to an A4 PDF: overview (1:6) + info + full-size tiled pages."""
 import math
-from shapely.geometry import Polygon, LineString
+from shapely.geometry import Polygon, LineString, Point
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.colors import Color, black, white
@@ -15,35 +15,44 @@ RED = Color(.78, .16, .10)
 PAPER_W, PAPER_H = A4
 MARGIN = 1.0                       # cm
 TILE_W, TILE_H = 21.0 - 2*MARGIN, 29.7 - 2*MARGIN   # 19 x 27.7 cm
-COLS, ROWS = 8, 4
-CANVAS_W, CANVAS_H = COLS*TILE_W, ROWS*TILE_H
+COLS = 8
+CANVAS_W = COLS*TILE_W
+DIM = Color(.08, .30, .66)
 
-# ------------------------------------------------------------- layout (canvas cm, y down)
-def place(pc, x, y):
-    b = pc['bbox']; pc['off'] = (x-b[0], y-b[1])
-place(m.FA, 1.0, 1.0)
-place(m.FB, 40.0, 18.0)
-place(m.BL, 61.0, 1.0)
-place(m.BR, 89.5, 1.0)
-place(m.SLV, 118.5, 1.0)
-place(m.DRP, 112.0, 74.0)
-place(m.TRIS[0], 2.0, 98.0)
-place(m.TRIS[1], 13.5, 98.0)
-place(m.TRIS[2], 28.0, 98.0)
-TEST_SQ = (42.0, 2.0)
-TITLE_AT = (41.0, 98.0)
-
-def check_layout():
-    from shapely.geometry import box
-    polys = []
-    for pc in pieces:
-        ox, oy = pc['off']
-        p = Polygon([(x+ox, y+oy) for x, y in pc['cut']])
-        assert box(0, 0, CANVAS_W, CANVAS_H).contains(p), pc['name']
-        for q, n in polys:
-            assert not p.intersects(q), (pc['name'], n)
-        polys.append((p, pc['name']))
-check_layout()
+# ------------------------------------------------------------- automatic layout (canvas cm, y down)
+from shapely.geometry import box as _box
+from shapely.affinity import translate as _tr
+TEST_SQ = (1.0, 1.0)
+TITLE_AT = (8.0, 1.0)
+GAP = 0.8
+def auto_layout():
+    placed = [_box(TEST_SQ[0]-GAP, TEST_SQ[1]-GAP, TEST_SQ[0]+5+GAP, TEST_SQ[1]+5+GAP),
+              _box(TITLE_AT[0]-GAP, 0, TITLE_AT[0]+44, TITLE_AT[1]+6.5)]
+    order = sorted(pieces, key=lambda p: -(p['bbox'][3]-p['bbox'][1])*(p['bbox'][2]-p['bbox'][0]))
+    for pc in order:
+        P0 = Polygon(pc['cut']).buffer(GAP/2).simplify(.1)
+        b = P0.bounds; w, h = b[2]-b[0], b[3]-b[1]
+        done = False
+        for y in [i*0.5 for i in range(0, 600)]:
+            for x in [i*0.5 for i in range(0, int((CANVAS_W-w)/0.5)+1)]:
+                bb = (x, y, x+w, y+h)
+                cand = None
+                for q in placed:
+                    qb = q.bounds
+                    if qb[0] < bb[2] and qb[2] > bb[0] and qb[1] < bb[3] and qb[3] > bb[1]:
+                        if cand is None: cand = _tr(P0, x-b[0], y-b[1])
+                        if cand.intersects(q): break
+                else:
+                    pc['off'] = (x-b[0]+0, y-b[1]+0)
+                    placed.append(cand if cand is not None else _tr(P0, x-b[0], y-b[1]))
+                    done = True; break
+            if done: break
+        assert done, pc['name']
+    return max(q.bounds[3] for q in placed)
+CONTENT_H = auto_layout()
+ROWS = math.ceil((CONTENT_H+0.5)/TILE_H)
+CANVAS_H = ROWS*TILE_H
+ROWNAMES = 'ABCDEFGH'
 
 # ------------------------------------------------------------- drawing primitives
 class View:
@@ -84,67 +93,125 @@ def arrow_head(v, a, b, off, size_cm):
         X, Y = v.p(x+off[0], y+off[1]); path.moveTo(X, Y) if i == 0 else path.lineTo(X, Y)
     path.close(); c.drawPath(path, stroke=0, fill=1)
 
+def clip_lines(P, pts):
+    g = P.intersection(LineString(pts))
+    return [list(q.coords) for q in getattr(g, 'geoms', [g]) if q.geom_type == 'LineString' and not q.is_empty]
+
+def text_rot(v, x, y, t, size, off, ang, color=DIM):
+    c = v.c; X, Y = v.p(x+off[0], y+off[1])
+    c.saveState(); c.translate(X, Y); c.rotate(ang); c.setFillColor(color); c.setFont('KR', size)
+    c.drawCentredString(0, -size*.35, t); c.restoreState()
+
+def fmt(L): return f'{L:.1f}'
+
+def auto_grain(pc, P):
+    from shapely.ops import polylabel
+    lab = polylabel(P, .2)
+    pc['labelpt'] = (lab.x, lab.y)
+    for dx in (4.5, -4.5, 6.5, -6.5, 3, -3, 0):
+        g = P.buffer(-1.2).intersection(LineString([(lab.x+dx, -500), (lab.x+dx, 500)]))
+        if g.is_empty or g.geom_type != 'LineString' or g.length < 10: continue
+        y0, y1 = g.bounds[1], g.bounds[3]; m_ = (y0+y1)/2; hl = min(g.length*.36, 22)
+        return ((lab.x+dx, m_-hl), (lab.x+dx, m_+hl))
+    return None
+
 def draw_piece(v, pc, detail=True, font=1.0):
     off = pc['off']
     seam = pc['seam']
+    P = Polygon(seam)
+    Pin = P.buffer(1e-3)
     sw = 1.0 if detail else .5
+    sgn = -1 if m.signed_area(seam) > 0 else 1
+    if pc.get('grain') == 'auto': pc['grain'] = auto_grain(pc, P)
     # quilting lattice
     if pc.get('quilt') and detail:
-        P = Polygon(seam).buffer(-.3)
-        bx = pc['bbox']; L = 200
+        Pq = P.buffer(-.3); L = 200
         for k in range(-40, 41):
             for sg in (1, -1):
                 x0 = k*6.0
-                ln = LineString([(x0-L, -sg*L), (x0+L, sg*L)])
-                g = P.intersection(ln)
-                for seg in getattr(g, 'geoms', [g]):
-                    if seg.geom_type == 'LineString' and not seg.is_empty:
-                        poly(v, list(seg.coords), off, width=.35, color=QUILT, dash=(4, 3))
-    # seam line
+                for seg in clip_lines(Pq, [(x0-L, -sg*L), (x0+L, sg*L)]):
+                    poly(v, seg, off, width=.35, color=QUILT, dash=(4, 3))
     if any(e['sa'] > 0 for e in pc['edges']):
         poly(v, seam, off, closed=True, width=.5*sw, color=GREY, dash=(3, 2))
-    # cut line
     poly(v, pc['cut'], off, closed=True, width=1.0*sw)
-    # darts & marks
+    # panel seams (new patchwork seams) drawn slightly heavier dashed in red
+    for e in pc['edges']:
+        if e.get('n') == 'panel':
+            poly(v, e['pts'], off, width=.9*sw, color=RED, dash=(5, 2))
     for mk in pc['marks']:
-        poly(v, mk, off, width=.6*sw)
+        for seg in clip_lines(Pin, mk): poly(v, seg, off, width=.6*sw)
     for d in pc['dashed']:
-        poly(v, d, off, width=.6*sw, color=black, dash=(8, 2, 1, 2))
+        for seg in clip_lines(Pin, d): poly(v, seg, off, width=.6*sw, dash=(8, 2, 1, 2))
+    # measurement guide lines (BL / WL / HL / CF ...)
+    for name, gl in pc.get('guides', []):
+        for seg in clip_lines(Pin, gl):
+            L = LineString(seg).length
+            if L < 2: continue
+            poly(v, seg, off, width=.5*sw, color=DIM, dash=(8, 2, 1, 2))
+            if detail:
+                (x0, y0), (x1, y1) = seg[0], seg[-1]
+                ang = math.degrees(math.atan2(-(y1-y0), x1-x0))
+                if ang > 90: ang -= 180
+                if ang <= -90: ang += 180
+                mx, my = x0+(x1-x0)*.22, y0+(y1-y0)*.22
+                if name in ('CF', 'CB'): my = y0 + L*.18
+                text_rot(v, mx + (0.45 if abs(ang) > 45 else 0), my - (0.45 if abs(ang) <= 45 else 0),
+                         f'{name} {fmt(L)}', 7.5*font, off, ang)
+    if detail:
+        for (x, y), t in pc.get('dartlabels', []):
+            if P.contains(LineString([(x-1, y), (x+1, y)]).centroid):
+                text_rot(v, x, y, t, 7.5*font, off, 0)
     if pc.get('foldline'):
         e = pc['edges'][-1]['pts']
         poly(v, e, off, width=1.6*sw, color=black, dash=(8, 2, 1, 2))
         mid = ((e[0][0]+e[-1][0])/2, (e[0][1]+e[-1][1])/2)
-        if detail:
-            text_c(v, mid[0]-1.2, mid[1]-6, ['대칭선'], 9*font, off)
-    # applique placement
+        if detail: text_c(v, mid[0]+1.6, mid[1]-6, ['대칭선'], 9*font, off)
     for k, cpt, ang in pc['applique']:
-        poly(v, m.tri_at(k, cpt, ang), off, closed=True, width=.8*sw, color=RED, dash=(3, 2))
-        if detail:
-            text_c(v, cpt[0], cpt[1], ['7'+k], 7*font, off, color=RED)
+        T = Polygon(m.tri_at(k, cpt, ang))
+        if not T.intersects(P): continue
+        for seg in clip_lines(Pin, list(T.exterior.coords)):
+            poly(v, seg, off, width=.8*sw, color=RED, dash=(3, 2))
+        if detail and P.contains(T.centroid):
+            text_c(v, T.centroid.x, T.centroid.y, ['7'+k], 7*font, off, color=RED)
     if pc.get('tri'):
         poly(v, pc['seam'], off, closed=True, width=1.0*sw, color=RED)
-    # grain
     if pc['grain']:
         a, b = pc['grain']
         poly(v, [a, b], off, width=.8*sw)
         hs = 1.0 if detail else 1.6
         arrow_head(v, a, b, off, hs); arrow_head(v, b, a, off, hs)
-    # notches
-    sgn = -1 if m.signed_area(seam) > 0 else 1
-    for ei, dist, cnt in pc['notches']:
-        if cnt == 0: continue
-        e = pc['edges'][ei]; pts = e['pts']; Lt = plen(pts)
-        L = max(e['sa'], .6)
+    # notches (absolute points; drawn on whichever edge they lie on)
+    for pt, cnt in pc['notches']:
+        best = None
+        for e in pc['edges']:
+            ls = LineString(e['pts']); d = ls.distance(Point(pt))
+            if d < 1e-3 and (best is None or d < best[0]): best = (d, e, ls.project(Point(pt)))
+        if best is None or cnt == 0: continue
+        _, e, dist = best; pts = e['pts']; Lt = plen(pts); L = max(e['sa'], .6)
         for j in range(cnt):
             dd = min(max(dist + (j-(cnt-1)/2)*.5, .01), Lt-.01)
-            p = at(pts, dd); q = at(pts, min(dd+.05, Lt))
-            r = at(pts, max(dd-.05, 0))
+            p = at(pts, dd); q = at(pts, min(dd+.05, Lt)); r = at(pts, max(dd-.05, 0))
             tx, ty = q[0]-r[0], q[1]-r[1]; n = math.hypot(tx, ty); tx, ty = tx/n, ty/n
-            nx, ny = -ty*sgn*-1, tx*sgn*-1
-            # outward normal: left normal of direction is (-ty, tx); offset_curve(+d)=left
             nx, ny = (-ty, tx) if sgn > 0 else (ty, -tx)
             poly(v, [(p[0]-nx*.25, p[1]-ny*.25), (p[0]+nx*L, p[1]+ny*L)], off, width=1.0*sw)
-    # texts
+    # edge lengths (finished seam-line lengths) along every edge
+    if detail:
+        for e in pc['edges']:
+            pts = e['pts']; L = plen(pts)
+            if L < 2.5 or e.get('n') == 'fold': continue
+            mp = at(pts, L/2); q = at(pts, min(L/2+.3, L)); r = at(pts, max(L/2-.3, 0))
+            tx, ty = q[0]-r[0], q[1]-r[1]; n = math.hypot(tx, ty); tx, ty = tx/n, ty/n
+            nx, ny = (ty, -tx) if sgn > 0 else (-ty, tx)        # inward normal
+            ang = math.degrees(math.atan2(-ty, tx))
+            if ang > 90: ang -= 180
+            if ang <= -90: ang += 180
+            size = 7.5 if not pc.get('tri') else 6.5
+            text_rot(v, mp[0]+nx*.75, mp[1]+ny*.75, fmt(L), size*font, off, ang)
+    # labels
+    if pc.get('autolabel'):
+        x, y = pc['labelpt']
+        lines = [t for t in pc['label'] if t]
+        text_c(v, x, y, lines, 12*font, off)
     for (x, y), lines in pc['texts']:
         big = len(lines) > 1 and not pc.get('tri')
         text_c(v, x, y, lines, (13 if big else 9)*font, off)
@@ -153,13 +220,14 @@ def draw_piece(v, pc, detail=True, font=1.0):
 def page_overview(c):
     W, H = landscape(A4)
     c.setPageSize((W, H))
-    s = 1/7
+    s = next(1/k for k in (6, 7, 8, 9, 10) if CANVAS_W/k*CM <= W-2.4*CM and CANVAS_H/k*CM <= H-4.4*CM)
+    SC = round(1/s)
     px, py = (W - CANVAS_W*s*CM)/2, H - 2.6*CM
     v = View(c, 0, 0, s, px, py)
     c.setFont('KR', 15); c.setFillColor(black)
     c.drawString(1.6*CM, H-1.35*CM, '비대칭 퀼팅 스레드 드레스 — 패턴 전체도 / 조립 지도')
     c.setFont('KR', 8.5); c.setFillColor(GREY)
-    c.drawString(1.6*CM, H-1.95*CM, '축척 1:7  ·  사이즈 55 (165/84)  ·  회색 칸 = A4 실물 크기 페이지 번호 (빈 칸은 인쇄하지 않음)')
+    c.drawString(1.6*CM, H-1.95*CM, f'축척 1:{SC}  ·  사이즈 55 (165/84)  ·  회색 칸 = A4 실물 크기 페이지 번호 (빈 칸은 인쇄하지 않음)')
     # tiles
     used = used_tiles()
     for r in range(ROWS):
@@ -180,11 +248,11 @@ def page_overview(c):
     X, Y = v.p(0, CANVAS_H+1.6)
     c.setStrokeColor(black); c.setLineWidth(.8)
     c.line(X, Y, X+10*s*CM, Y); c.line(X, Y-3, X, Y+3); c.line(X+10*s*CM, Y-3, X+10*s*CM, Y+3)
-    c.setFont('KR', 7.5); c.setFillColor(black); c.drawString(X+10*s*CM+5, Y-2.5, '10 cm (1:7)')
+    c.setFont('KR', 7.5); c.setFillColor(black); c.drawString(X+10*s*CM+5, Y-2.5, f'10 cm (1:{SC})')
     # legend
-    lx = X + 4.2*CM
+    lx = X + 3.4*CM
     def leg(i, label, **kw):
-        xx = lx + i*4.4*CM
+        xx = lx + i*3.35*CM
         c.setStrokeColor(kw.get('color', black)); c.setLineWidth(kw.get('w', .9))
         c.setDash(list(kw["dash"])) if "dash" in kw else c.setDash()
         c.line(xx, Y, xx+0.9*CM, Y); c.setDash()
@@ -193,6 +261,8 @@ def page_overview(c):
     leg(1, '완성선', color=GREY, dash=(3, 2), w=.6)
     leg(2, '중심선 / 대칭선', dash=(8, 2, 1, 2))
     leg(3, '아플리케 위치', color=RED, dash=(3, 2))
+    leg(4, '패널 연결선', color=RED, dash=(5, 2), w=1.2)
+    leg(5, '치수선', color=DIM, dash=(8, 2, 1, 2))
 
 def used_tiles():
     from shapely.geometry import box
@@ -205,7 +275,7 @@ def used_tiles():
             if any(s.intersects(b) for s in shapes): out.add((r, col))
     return out
 
-def tile_name(r, col): return f'{"ABCD"[r]}{col+1}'
+def tile_name(r, col): return f'{ROWNAMES[r]}{col+1}'
 
 # ------------------------------------------------------------- page 2: info
 def page_info(c):
@@ -243,7 +313,7 @@ def page_info(c):
           [3.6, 2.6, 4.4, 6.8])
     h('2. 재단 목록  (모든 패턴은 겉면 기준 — 원단 겉면을 위로 하고 1장씩 재단, 뒤집지 말 것)')
     table([['번호', '패턴', '원단', '수량', '비고'],
-           ['1', '앞판 A', '아이보리 퀼팅 (면 + 솜 + 면)', '1', '아플리케 위치 표시'],
+           ['1-1~1-5', '앞판 A 패널 5장', '아이보리 퀼팅 (면 + 솜 + 면)', '각 1', '패치워크로 연결, 아플리케 위치'],
            ['2', '앞판 B', '아이보리 거즈 또는 튤 (베이스)', '1', '위에 실 장식'],
            ['3', '뒤판 왼쪽', '아이보리 퀼팅', '1', 'CB 콘솔지퍼'],
            ['4', '뒤판 오른쪽', '아이보리 퀼팅', '1', 'CB 콘솔지퍼'],
@@ -252,11 +322,13 @@ def page_info(c):
            ['7a/7b/7c', '삼각 아플리케', '레드 울 펠트', '1/2/1', '시접 없음'],
            ['-', '네크라인 바이어스', '레드 또는 아이보리', '1', f'폭 4cm x {math.ceil(m.neck_total+4)}cm']],
           [1.8, 3.4, 5.2, 1.4, 5.6])
+    p('치수 표기: 파란 숫자 = 각 선의 완성선 길이(cm) · BL/WL/HL/CF 선의 숫자 = 그 조각의 해당 위치 너비(다트 포함)', indent=0)
     p('시접: 기본 1cm · 밑단 2cm · CB(지퍼) 2cm · 소매단 2.5cm · 네크라인 0 (바이어스로 감쌈) — 패턴에 포함되어 있음', indent=0)
     p('부자재: 콘솔지퍼 45cm 1개, 실 장식용 얀(레드·오렌지·머스터드·아이보리) 다량, 레드 지그재그 스티치용 실', indent=0)
     h('3. 봉제 순서')
-    steps = ['① 퀼팅 원단에 패턴을 놓고 재단 (점선 격자 = 6cm 다이아 퀼팅 가이드). 다트를 박는다.',
-             '② 앞판 A에 삼각 아플리케(7a·7b·7c)를 올리고 레드 실 지그재그 새틴 스티치로 고정.',
+    steps = ['① 퀼팅 원단에 패턴을 놓고 재단 (점선 격자 = 6cm 다이아 퀼팅 가이드). 다트를 박는다 (패널선을 지나는 다트는 패널 연결 후 이어 박기).',
+             '② 앞판 A 패널 연결: A-1+A-2 → A-4+A-5 → 위·중·아래(A-3) 순서로 빨간 점선(패널선)끼리 너치 맞춰 봉제.',
+             '   이어진 앞판 A에 삼각 아플리케(7a·7b·7c)를 올리고 레드 실 지그재그 새틴 스티치로 고정.',
              '③ 앞판 B 베이스에 얀을 루프/크로셰 메쉬로 손바느질 고정, 일부는 밑단 아래로 길게(바닥까지) 늘어뜨림.',
              '④ 앞판 A + B 스타일선 연결 (BP·허리 너치 맞춤) → 솔기 위 레드 지그재그 장식 스티치.',
              '⑤ 뒤판 CB에 콘솔지퍼(너치까지) 달고 아래는 박음. 왼쪽 어깨선 · 양 옆선 봉제.',
@@ -267,9 +339,9 @@ def page_info(c):
     for t in steps: p(t, size=8.4)
     h('4. 인쇄 · 조립 방법')
     for t in ['- 3페이지부터 실물 크기 A4입니다. 인쇄 시 반드시 "실제 크기 / 100%" 선택 (페이지 맞춤 해제).',
-              '- A3 페이지의 5cm × 5cm 테스트 사각형을 자로 확인한 뒤 나머지를 인쇄하세요.',
+              '- A1 페이지의 5cm × 5cm 테스트 사각형을 자로 확인한 뒤 나머지를 인쇄하세요.',
               '- 각 페이지의 오른쪽 · 아래 여백을 회색 테두리선에서 잘라내고, 옆 페이지 테두리선에 맞춰 붙입니다.',
-              '- 페이지 번호(A1~D8)와 가장자리의 ◆ 표시를 1페이지 조립 지도에 맞춰 배치합니다.',
+              f'- 페이지 번호(A1~{ROWNAMES[ROWS-1]}{COLS})와 가장자리의 ◆ 표시를 1페이지 조립 지도에 맞춰 배치합니다.',
               '- 이 패턴은 디자인 이미지를 바탕으로 한 시작용 패턴입니다 — 광목 가봉(토일) 후 핏을 조정하세요.']:
         p(t, size=8.4)
 
@@ -310,7 +382,7 @@ def page_tile(c, r, col, used):
     c.setFont('Helvetica-Bold', 10); c.setFillColor(black)
     c.drawString(px+4, py-13, name)
     c.setFont('KR', 6.5); c.setFillColor(GREY)
-    c.drawString(px, 0.45*CM, f'{name}  ·  행 {"ABCD"[r]} / 열 {col+1}  ·  100% 실제 크기로 인쇄  ·  오른쪽·아래 여백을 테두리선에서 잘라 붙이기')
+    c.drawString(px, 0.45*CM, f'{name}  ·  행 {ROWNAMES[r]} / 열 {col+1}  ·  100% 실제 크기로 인쇄  ·  오른쪽·아래 여백을 테두리선에서 잘라 붙이기')
     # neighbour markers (diamonds on edges)
     def diamond(X, Y, label, ha):
         c.setFillColor(black)
