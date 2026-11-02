@@ -85,8 +85,8 @@ def style_lower(leg_x):
 style_A = style_lower(-7.25) + style_up[1:]      # HB -> T
 style_B = style_lower(-10.75) + style_up[1:]
 
-hem_A = [(HEMSIDE, hem_f(HEMSIDE)), (-6, 90), HB]
-hem_B = [HB, (-HEMSIDE, hem_f(-HEMSIDE))]
+hem_A = cr([(HEMSIDE, hem_f(HEMSIDE)), (20.5, 79.3), (8, 84.6), (-6, 90)]) + [HB]
+hem_B = cr([HB, (-20.5, 87.1), (-HEMSIDE, hem_f(-HEMSIDE))])
 
 def side_dart(side, top_dist, tipx):
     a = at(side, top_dist); b = at(side, top_dist+3)
@@ -101,7 +101,7 @@ def piece(name, edges, **kw):
 FA = piece('1  앞판 A', [
     dict(pts=neck_fA, sa=0, n='neck'),
     dict(pts=line(SNP_F, SP_F), sa=1),
-    dict(pts=rev(front_arm), sa=1, n='arm'),   # SP->UA
+    dict(pts=front_arm, sa=1, n='arm'),   # SP->UA
     dict(pts=side_L, sa=1),
     dict(pts=hem_A, sa=2),
     dict(pts=style_A, sa=1),
@@ -138,7 +138,7 @@ side_bR = side_seam((-22.5, 22.5), (-20.5, 39), (-23.5, 57), (-24, hem_b(-24)))
 
 BL = piece('3  뒤판 왼쪽', [
     dict(pts=line((0, CBN), (0, hem_b(0))), sa=2, n='cb'),
-    dict(pts=line((0, hem_b(0)), (24, hem_b(24))), sa=2),
+    dict(pts=cr([(0, 80), (10, 78.35), (19.5, 76.25), (24, 76)]), sa=2),
     dict(pts=rev(side_bL), sa=1),
     dict(pts=back_arm, sa=1, n='arm'),   # UA? -> no: back_arm SP->UA ; we need UA->SP
     dict(pts=line(SP_B, SNP_B), sa=1),
@@ -154,10 +154,10 @@ BL['quilt'] = True
 BR = piece('4  뒤판 오른쪽', [
     dict(pts=neck_bR, sa=0, n='neck'),
     dict(pts=side_bR, sa=1),
-    dict(pts=line((-24, hem_b(-24)), (0, hem_b(0))), sa=2),
+    dict(pts=cr([(-24, 84), (-19.5, 83.75), (-10, 81.65), (0, 80)]), sa=2),
     dict(pts=line((0, hem_b(0)), (0, CBN)), sa=2, n='cb'),
 ])
-BR['marks'] = [[(-10-1.75, 39.6), (-10, 25), (-10+1.75, 39.6), (-10, 55), (-10-1.75, 39.6)]]
+BR['marks'] = [[(-10-1.75, 39.6), (-10, 22), (-10+1.75, 39.6), (-10, 55), (-10-1.75, 39.6)]]
 BR['grain'] = ((-5, 32), (-5, 70))
 BR['texts'] = [((-15.5, 62), ['4  뒤판 오른쪽', '퀼팅 x1', '(겉면 위로)']), ((-2.6, 46), ['CB'])]
 BR['quilt'] = True
@@ -180,8 +180,8 @@ def sleeve_build(cap):
         cx, cy = 0, cap
         if (x+nx-cx)**2+(y+ny-cy)**2 < (x-cx)**2+(y-cy)**2: nx, ny = -nx, -ny
         return (x+nx*off, y+ny*off)
-    pts = [B0, along(B0, top, .25, -0.4), along(B0, top, .5, 0.7), along(B0, top, .78, 1.7),
-           (-1.8, 0.1), top, (1.8, 0.1), along(F0, top, .78, 1.7), along(F0, top, .5, 0.3),
+    pts = [B0, along(B0, top, .25, -0.4), along(B0, top, .5, 0.4), along(B0, top, .78, 0.8),
+           (-1.8, 0.1), top, (1.8, 0.1), along(F0, top, .78, 0.8), along(F0, top, .5, 0.0),
            along(F0, top, .25, -1.2), F0]
     return cr(pts, 20), bwF, bwB
 capc, bwF, bwB = sleeve_build(cap)
@@ -190,11 +190,11 @@ WR = M['wrist']/2
 SL = M['sleeve']
 SLV = piece('5  소매', [
     dict(pts=capc, sa=1, n='cap'),                     # back bicep -> front bicep
-    dict(pts=line((bwF, cap), (WR+0.6, SL)), sa=1),
-    dict(pts=line((WR+0.6, SL), (-WR-0.6+0, SL)), sa=2.5),
-    dict(pts=line((-WR-0.6, SL), (-bwB, cap)), sa=1),
+    dict(pts=line((bwF, cap), (WR, SL)), sa=1),
+    dict(pts=line((WR, SL), (-WR, SL)), sa=2.5),
+    dict(pts=line((-WR, SL), (-bwB, cap)), sa=1),
 ])
-SLV['dashed'] = [[(-bwB, cap), (bwF, cap)], [(-(bwB+WR)/2-0.6, 34), ((bwF+WR)/2+0.6, 34)]]
+SLV['dashed'] = [[(-bwB, cap), (bwF, cap)], [(-(bwB+WR)/2, 34), ((bwF+WR)/2, 34)]]
 SLV['grain'] = ((0, 8), (0, 54))
 SLV['texts'] = [((6.2, 24), ['5  소매 (왼쪽만)', '올리브 니트 x1']), ((5.5, cap-0.6), ['F →']),
                 ((-6.5, cap-0.6), ['← B']), ((6, 33.4), ['EL'])]
