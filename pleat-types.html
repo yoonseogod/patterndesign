@@ -54,6 +54,7 @@ h3 { font-size: 1.05rem; margin: 0; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
 @media (max-width: 380px) { .grid { grid-template-columns: 1fr; } }
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+@media (min-width: 760px) { .card.wide { grid-column: span 2; } }
 .card-head { display: flex; gap: 10px; align-items: baseline; }
 .no { font-family: var(--mono); font-size: 0.85rem; color: var(--paper); background: var(--ink); min-width: 1.9em; text-align: center; border-radius: 3px; padding: 0 4px; }
 .en { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); }
@@ -126,6 +127,12 @@ function arcPts(chord, len, sign, n) {
   const th = (lo + hi) / 2, R = len / th, cz = -sign * R * Math.cos(th / 2), a0 = Math.atan2(-cz, -chord / 2);
   return Array.from({ length: n }, (_, k) => { const a = a0 - sign * th * (k + 1) / n; return [chord / 2 + R * Math.cos(a), cz + R * Math.sin(a)]; });
 }
+// radius of the arc with the given chord and length (same solve as arcPts)
+function arcRadius(chord, len) {
+  if (len <= chord) return Infinity; const target = chord / len; let lo = 1e-6, hi = 2 * Math.PI - 1e-6;
+  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (2 * Math.sin(m / 2) / m > target) lo = m; else hi = m; }
+  return len / ((lo + hi) / 2);
+}
 // a flattened loop sticking out toward the viewer (a stitched pinch); u0..u1 is the part of the loop to draw
 function finPts(len, u0, u1, n, w = 0.5) {
   const at = u => u < 0.5 ? [-w / 2 * (u / 0.5), len / 2 * (u / 0.5)] : [-w / 2 + w * ((u - 0.5) / 0.5), len / 2 * (1 - (u - 0.5) / 0.5)];
@@ -160,7 +167,10 @@ function turtle(seq, open) {
 }
 const repeat = (seq, K) => Array.from({ length: K }, () => seq).flat();
 // A4 sheet in cm; orientation can be switched on the page
-const SHEET = { w: 29.7, h: 21 };
+const BASE = { w: 29.7, h: 21 }, GLUE = 1; let NSH = 1;
+// width grows when several A4 sheets are glued side by side (1cm overlap each)
+const SHEET = { get w() { return BASE.w * NSH - GLUE * (NSH - 1); }, set w(v) { BASE.w = v; }, get h() { return BASE.h; }, set h(v) { BASE.h = v; } };
+const useSheets = p => { NSH = p && p.sheets ? p.sheets : 1; };
 const pressDepth = () => Math.round(SHEET.h * 0.3);
 const midV = h => h + (SHEET.h - h) * 0.55;
 // repeat a fold sequence until it fills the sheet width exactly
@@ -230,17 +240,17 @@ const pleats = [
   },
   {
     no: 6, id: "cartridge", name: "카트리지 주름", en: "Cartridge pleat",
-    desc: "주름 분량을 둥근 원통으로 세우고 원통 입구만 헤딩 깊이까지 박아요. 고블릿과 달리 아래를 집지 않아서 원통이 그대로 아래 물결로 이어져요.",
-    use: "역사 복식의 스커트 허리, 소매산, 무거운 커튼 헤딩.",
-    params: [{ id: "f", label: "주름 사이", min: 1, max: 14, step: 0.5, v: 2 }, { id: "D", label: "원통 지름", min: 1, max: 5, step: 0.5, v: 1.5 }, { id: "h", label: "헤딩 깊이", min: 2, max: 15, step: 1, v: 5 }],
-    build: p => { const L = Math.PI * p.D; return curtain([
-      { v: 0, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: 0.8, len: L, sign: 1, mark: "S" }] },
-      { v: p.h, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: 0.8, len: L, sign: 1, mark: "S" }] },
-      { v: midV(p.h), pieces: [{ type: "arc", chord: p.f * 0.9, len: p.f, sign: -1 }, { type: "arc", chord: L * 0.45, len: L, sign: 1, mark: "S" }] },
-      { v: SHEET.h, pieces: [{ type: "arc", chord: p.f * 0.85, len: p.f, sign: -1 }, { type: "arc", chord: L * 0.55, len: L, sign: 1, mark: "S" }] }
+    desc: "원단을 작은 원통으로 말아 원통끼리 맞닿게 촘촘히 세우고, 위쪽만 헤딩 깊이까지 고정해요. 아래를 집지 않아서 원통이 그대로 아래 물결로 이어져요. 원단이 3배 넘게 들어가서 A4 2장을 이어 붙여 써요.",
+    use: "역사 복식의 스커트 허리, 소매산, 무거운 커튼 헤딩. 좁은 허리에 많은 원단을 모을 때 써요.",
+    params: [{ id: "D", label: "원통 지름", min: 1, max: 4, step: 0.5, v: 1.5 }, { id: "g", label: "원통 사이 띄움", min: 0, max: 5, step: 0.5, v: 0 }, { id: "h", label: "헤딩 깊이", min: 2, max: 15, step: 1, v: 5 }, { id: "sheets", label: "A4 장수", min: 1, max: 3, step: 1, v: 2 }],
+    build: p => { const L = Math.PI * p.D, f = Math.max(0.3, 2 * arcRadius(0.8, L) - 0.8 + p.g); return curtain([
+      { v: 0, pieces: [{ type: "line", len: f }, { type: "arc", chord: 0.8, len: L, sign: 1, mark: "S" }] },
+      { v: p.h, pieces: [{ type: "line", len: f }, { type: "arc", chord: 0.8, len: L, sign: 1, mark: "S" }] },
+      { v: midV(p.h), pieces: [{ type: "arc", chord: f * 0.9, len: f, sign: -1 }, { type: "arc", chord: L * 0.45, len: L, sign: 1, mark: "S" }] },
+      { v: SHEET.h, pieces: [{ type: "arc", chord: f * 0.85, len: f, sign: -1 }, { type: "arc", chord: L * 0.55, len: L, sign: 1, mark: "S" }] }
     ]); },
     heading: p => p.h, stitch: "heading",
-    calc: p => ({ unit: p.f + Math.PI * p.D, finish: p.f + 0.8, note: "커튼식 카트리지 주름 기준이에요. 역사 복식의 카트리지 주름은 간격 없이 홈질 두세 줄로 촘촘히 당겨 허리에 하나씩 꿰매 달아요." })
+    calc: p => { const f = Math.max(0.3, 2 * arcRadius(0.8, Math.PI * p.D) - 0.8 + p.g); return { unit: f + Math.PI * p.D, finish: f + 0.8, note: "원통 사이 띄움을 0으로 두면 원통끼리 맞닿는 옷용 카트리지 주름이에요. 띄움을 늘리면 커튼식 카트리지 주름에 가까워져요." }; }
   },
   {
     no: 7, id: "goblet", name: "고블릿 주름", en: "Goblet pleat",
@@ -310,6 +320,8 @@ const pleats = [
   }
 ];
 
+pleats.forEach(pl => { if (pl.id !== "motif" && !pl.params.some(q => q.id === "sheets")) pl.params.push({ id: "sheets", label: "A4 장수", min: 1, max: 3, step: 1, v: 1 }); });
+
 // ---------- 2D drafts ----------
 function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
 let LW = 1;
@@ -317,21 +329,28 @@ const lineStyle = t => t === "M" ? { stroke: "var(--mountain)", "stroke-width": 
 let FS = 1;
 function txt(svg, x, y, s, size = 1.3, anchor = "middle", fill = "var(--muted)") { const t = el("text", { x, y, "text-anchor": anchor, "font-size": size * FS, stroke: "var(--paper)", "stroke-width": size * FS * 0.25, "paint-order": "stroke", "stroke-linejoin": "round", fill, "font-family": "IBM Plex Mono, monospace" }, svg); t.textContent = s; return t; }
 
+function glueZones(svg, H) {
+  for (let k = 1; k < NSH; k++) {
+    const x = k * (BASE.w - GLUE);
+    el("rect", { x, y: 0, width: GLUE, height: H, fill: "var(--chip)", stroke: "var(--muted)", "stroke-width": 0.05 * Math.max(LW, 0.5), "stroke-dasharray": "0.3 0.3" }, svg);
+    txt(svg, x + GLUE / 2, H / 2, `풀칠 1cm · ${k + 1}장째`, 0.8, "middle", "var(--ink)").setAttribute("transform", `rotate(-90 ${x + GLUE / 2} ${H / 2})`);
+  }
+}
 function ruler(svg, W, H) {
+  for (let k = 1; k < NSH; k++) { const x0 = k * (BASE.w - GLUE); for (let y = 0; y <= H + 0.01; y += 1) el("line", { x1: x0, y1: y, x2: x0 + (Math.round(y) % 5 === 0 ? 0.7 : 0.35), y2: y, stroke: "var(--muted)", "stroke-width": 0.06 }, svg); }
   for (let x = 0; x <= W + 0.01; x += 1) { const big = Math.round(x) % 5 === 0; el("line", { x1: x, y1: 0, x2: x, y2: big ? 0.7 : 0.35, stroke: "var(--muted)", "stroke-width": 0.06 }, svg); if (big && x > 0 && x < W - 1) txt(svg, x, 1.35, String(Math.round(x)), 0.75); }
   for (let y = 0; y <= H + 0.01; y += 1) { const big = Math.round(y) % 5 === 0; el("line", { x1: 0, y1: y, x2: big ? 0.7 : 0.35, y2: y, stroke: "var(--muted)", "stroke-width": 0.06 }, svg); }
 }
 function drawDraft(svg, pl, p, print) {
   LW = print ? 0.32 : 1;
   try { drawDraftInner(svg, pl, p, print); } finally { LW = 1; }
-  if (print) txt(svg, SHEET.w - 0.8, SHEET.h - 0.9, `${pl.no}. ${pl.name} · A4 1:1 (눈금 1cm)`, 0.9, "end", "var(--ink)");
 }
 function drawDraftInner(svg, pl, p, print) {
   svg.innerHTML = "";
   const W = SHEET.w, H = SHEET.h; FS = 0.62;
   svg.setAttribute("viewBox", print ? `0 0 ${W} ${H}` : `-0.6 -2.2 ${W + 1.2} ${H + 2.8}`);
   el("rect", { x: 0, y: 0, width: W, height: H, fill: "var(--paper)", stroke: "var(--paper-edge)", "stroke-width": 0.12 }, svg);
-  if (!print) txt(svg, 0, -0.8, `A4 ${W > H ? "가로" : "세로"} ${fmt(W)} × ${fmt(H)}cm · 1칸 1cm`, 1, "start");
+  if (!print) txt(svg, 0, -0.8, `A4 ${BASE.w > BASE.h ? "가로" : "세로"}${NSH > 1 ? ` ${NSH}장 이어 붙임` : ""} ${fmt(W)} × ${fmt(H)}cm · 1칸 1cm`, 1, "start");
   if (pl.id === "motif") { drawMotifDraft(svg, p); ruler(svg, W, H); return; }
   const b = pl.build(p);
   if (b.kind === "flat") {
@@ -359,6 +378,7 @@ function drawDraftInner(svg, pl, p, print) {
     if (pl.stitch === "heading") { el("line", { x1: 0, y1: hd, x2: W, y2: hd, stroke: "var(--muted)", "stroke-width": 0.08, "stroke-dasharray": "0.5 0.5" }, svg); txt(svg, W - 0.4, Math.min(hd, H) + 1.2, `헤딩 ${fmt(hd)}cm`, 1, "end"); }
     else txt(svg, W - 0.4, H - 0.6, "관 끝까지 박음", 1, "end");
   }
+  glueZones(svg, H);
   ruler(svg, W, H);
 }
 function drawMotifDraft(svg, p) {
@@ -417,13 +437,14 @@ for (const pl of pleats) {
   const calc = document.createElement("div"); calc.className = "calc";
   const vals = {}; state[pl.id] = vals;
   const render = () => {
+    useSheets(vals); card.classList.toggle("wide", NSH > 1);
     drawDraft(draft, pl, vals); drawSection(sec, pl, vals, +document.getElementById("open").value);
     const c = pl.calc(vals), ratio = c.unit / Math.max(c.finish, 0.01);
     calc.innerHTML = (pl.typeName ? `<div>변형: <b>${pl.typeName(vals.type)}</b></div>` : "") +
       (pl.id === "motif" ? (() => { const n = Math.floor(SHEET.w / vals.a) * Math.floor(SHEET.h / vals.a), m = Math.min(n, vals.n);
           return `<div>A4 한 장에서 정사각형 <b>${n}장</b>이 나와요.</div><div>${m}장을 겹쳐 이으면 길이 <b>${fmt(vals.a + (m - 1) * vals.a * (1 - vals.o))}cm</b>${n < vals.n ? ` <span class="hint">(${vals.n}장을 쓰려면 A4 ${Math.ceil(vals.n / Math.max(n, 1))}장 필요)</span>` : ""}</div>`; })() :
       `<div>주름 1개에 원단 <b>${fmt(c.unit)}cm</b> → 완성 <b>${fmt(c.finish)}cm</b>, 원단 배수 <b>${ratio > 50 ? "50+" : fmt(ratio)}배</b></div>
-       <div>A4 ${SHEET.w > SHEET.h ? "가로" : "세로"} ${fmt(SHEET.w)}cm 한 장 → 주름 <b>${Math.floor(SHEET.w / c.unit)}개</b>, 접으면 폭 약 <b>${ratio > 50 ? "—" : fmt(SHEET.w / ratio)}cm</b></div>` + (c.note ? `<div class="hint">${c.note}</div>` : ""));
+       <div>A4 ${BASE.w > BASE.h ? "가로" : "세로"} ${NSH > 1 ? `${NSH}장 이어 붙임 (${fmt(SHEET.w)}cm)` : `${fmt(SHEET.w)}cm 한 장`} → 주름 <b>${Math.floor(SHEET.w / c.unit)}개</b>, 접으면 폭 약 <b>${ratio > 50 ? "—" : fmt(SHEET.w / ratio)}cm</b></div>` + (c.note ? `<div class="hint">${c.note}</div>` : ""));
   };
   for (const q of pl.params) {
     vals[q.id] = q.v;
@@ -526,7 +547,7 @@ for (const pl of pleats) {
   document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => view(b.dataset.view)));
   morphEl.addEventListener("input", () => { document.getElementById("morph-o").textContent = morphEl.value >= 100 ? "완성" : morphEl.value <= 0 ? "펼침" : morphEl.value + "%"; window.load3d(window.cur3d, true); });
   window.load3d = (id, keepCam) => {
-    const pl = pleats.find(q => q.id === id) || pleats[0], p = state[pl.id]; window.cur3d = pl.id; pick.value = pl.id;
+    const pl = pleats.find(q => q.id === id) || pleats[0], p = state[pl.id]; window.cur3d = pl.id; pick.value = pl.id; useSheets(p);
     cap.textContent = `${pl.no}. ${pl.name}` + (pl.typeName ? ` · ${pl.typeName(p.type)}` : "");
     if (group) { scene.remove(group); group.traverse(o => { o.geometry && o.geometry.dispose(); }); }
     group = new THREE.Group(); let size = 40;
@@ -570,7 +591,18 @@ for (const pl of pleats) {
   const size = () => { const w = host.clientWidth, h = host.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
   new ResizeObserver(size).observe(host); size();
   window.load3d("goblet");
-  window.printDraftSVG = id => { const pl = pleats.find(q => q.id === id), svg = document.createElementNS(NS, "svg"); drawDraft(svg, pl, state[id], true); svg.setAttribute("width", SHEET.w * 10 + "mm"); svg.setAttribute("height", SHEET.h * 10 + "mm"); return svg.outerHTML; };
+  window.printDraftSVG = id => {
+    const pl = pleats.find(q => q.id === id); useSheets(state[id]);
+    const out = [];
+    for (let k = 0; k < NSH; k++) {
+      const svg = document.createElementNS(NS, "svg"); drawDraft(svg, pl, state[id], true);
+      const x0 = k * (BASE.w - GLUE);
+      svg.setAttribute("viewBox", `${x0} 0 ${BASE.w} ${BASE.h}`); svg.setAttribute("width", BASE.w * 10 + "mm"); svg.setAttribute("height", BASE.h * 10 + "mm");
+      LW = 0.32; txt(svg, x0 + BASE.w - 0.8, BASE.h - 0.9, `${pl.no}. ${pl.name} · A4 1:1 (눈금 1cm)` + (NSH > 1 ? ` · ${k + 1}/${NSH}장` : ""), 0.9, "end", "var(--ink)"); LW = 1;
+      out.push(svg.outerHTML);
+    }
+    return out;
+  };
   document.getElementById("sheet").addEventListener("change", e => { const port = e.target.value === "port"; SHEET.w = port ? 21 : 29.7; SHEET.h = port ? 29.7 : 21; pleats.forEach(pl => pl.render()); window.load3d(window.cur3d); });
   (function tick() { requestAnimationFrame(tick); controls.update(); renderer.render(scene, camera); })();
 })();
