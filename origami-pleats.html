@@ -71,6 +71,19 @@ button { font: inherit; font-size: 0.85rem; border: 1px solid var(--ink); backgr
 .badge { font-size: 0.78rem; font-family: var(--body); padding: 3px 9px; border-radius: 3px; align-self: flex-start; background: var(--chip); color: var(--muted); }
 .badge[data-s="ok"] { color: var(--accent); }
 .badge[data-s="warn"] { color: var(--mountain); }
+.sim { margin-top: 8px; }
+.sim-box { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 16px; }
+@media (max-width: 820px) { .sim-box { grid-template-columns: 1fr; } }
+.sim-view { position: relative; min-width: 0; }
+#sim-canvas { height: 520px; border-radius: 3px; overflow: hidden; background: var(--bg); touch-action: none; }
+@media (max-width: 820px) { #sim-canvas { height: 400px; } }
+#sim-canvas canvas { display: block; width: 100% !important; height: 100% !important; }
+.sim-status { position: absolute; left: 10px; bottom: 10px; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); background: var(--paper); padding: 2px 8px; border-radius: 3px; }
+.sim-ctrl { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sim-ctrl select { width: 100%; font: inherit; font-size: 0.85rem; padding: 4px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; }
+.sim-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.check { display: inline-flex; gap: 6px; align-items: center; font-size: 0.85rem; }
+.to3d { align-self: flex-start; }
 .adv-head { margin: 44px 0 16px; display: flex; flex-direction: column; gap: 6px; }
 .method { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
 @media (max-width: 760px) { .method { grid-template-columns: 1fr; } }
@@ -104,6 +117,30 @@ button { font: inherit; font-size: 0.85rem; border: 1px solid var(--ink); backgr
   </div>
   <div class="grid" id="grid2"></div>
 
+  <section class="sim" id="sim">
+    <div class="adv-head">
+      <span class="eyebrow">3D Simulation</span>
+      <h2>3D 접기 시뮬레이션</h2>
+      <p class="lead">도면을 삼각형 메시로 바꾸고, 종이 길이는 늘어나지 않게 붙잡은 채로 모든 주름을 동시에 목표 각도까지 접어요. 카드의 "3D로 접어 보기"를 누르면 그 카드의 현재 설정이 그대로 들어와요.</p>
+    </div>
+    <div class="sim-box">
+      <div class="sim-view"><div id="sim-canvas"></div><span class="sim-status" id="sim-status">준비 중</span></div>
+      <div class="sim-ctrl">
+        <div class="ctrl"><label for="sim-pick">패턴</label><select id="sim-pick"></select><span></span></div>
+        <div class="ctrl"><label for="sim-fold">접힘 정도</label><input type="range" id="sim-fold" min="0" max="98" step="1" value="85"><output id="sim-fold-o">85%</output></div>
+        <div class="ctrl"><label for="sim-facet">면 단단함</label><input type="range" id="sim-facet" min="0.05" max="1" step="0.05" value="0.3"><output id="sim-facet-o">0.30</output></div>
+        <div class="sim-btns">
+          <button type="button" id="sim-play">접었다 펴기 반복</button>
+          <button type="button" id="sim-reset">펼친 상태로 다시</button>
+          <label class="check"><input type="checkbox" id="sim-lines" checked> 주름선 보기</label>
+        </div>
+        <p class="hint">드래그로 돌리고, 휠이나 두 손가락으로 확대해요. 앞면은 흰색, 뒷면은 초록색이에요. 면 단단함을 낮추면 종이가 더 휘어서 하이퍼 같은 입체 패턴이 잘 접혀요.</p>
+        <p class="hint">트위스트 패턴은 반쯤 접혔을 때 구겨진 것처럼 보여요. 실제 종이도 다 접히기 전까지는 면이 휘어야 해서 그래요. 80% 이상에서 납작하게 정리돼요.</p>
+        <p class="hint">계산은 근사치예요. 종이끼리 부딪히는 것은 계산하지 않아서, 거의 다 접힌 상태에서는 면이 서로 겹쳐 보일 수 있어요.</p>
+      </div>
+    </div>
+  </section>
+
   <div class="method">
     <div>
       <h2>종이 몰드로 원단 플리츠 만들기</h2>
@@ -126,6 +163,8 @@ button { font: inherit; font-size: 0.85rem; border: 1px solid var(--ink); backgr
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 const NS = "http://www.w3.org/2000/svg";
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -213,7 +252,7 @@ const patterns = [
         const x = (i + (j % 2) * 0.5) * cw;
         for (const dx of [-0.5, 0.5]) { const s = clipX([x, j * h], [x + dx * cw, (j + 1) * h], 0, W); if (s) lines.push({ a: s[0], b: s[1], t: "M" }); }
       }
-      return { w: W, h: H, paper: `M0 0H${W}V${H}H0Z`, lines };
+      return { w: W, h: H, paper: `M0 0H${W}V${H}H0Z`, lines, outline: [[0, 0], [W, 0], [W, H], [0, H]] };
     }
   },
   {
@@ -230,7 +269,7 @@ const patterns = [
         if (i <= p.n) lines.push({ a: P(i, j), b: P(i + 1, j + 1), t: "V" });
       }
       const c = [P(0, 0), P(p.n + 1, 0), P(p.n + 1, p.m), P(0, p.m)];
-      return { w: P(p.n + 1, p.m)[0] + 1, h: p.m * h, paper: `M${c.join("L")}Z`, lines, glue: [P(0, 0), P(1, 0), P(1, p.m), P(0, p.m)] };
+      return { w: P(p.n + 1, p.m)[0] + 1, h: p.m * h, paper: `M${c.join("L")}Z`, lines, outline: c, glue: [P(0, 0), P(1, 0), P(1, p.m), P(0, p.m)] };
     }
   }
 ];
@@ -347,6 +386,7 @@ function makeCtrl(card, p, onChange) {
 }
 
 const grid = document.getElementById("grid");
+const sim3dList = [];
 function addCard(p, container) {
   const card = document.createElement("article"); card.className = "card";
   card.innerHTML = `<div class="card-head"><h3>${p.name} <span class="en">${p.en}</span></h3><span class="lvl">${p.lvl}</span></div>`;
@@ -365,7 +405,12 @@ function addCard(p, container) {
   const d = document.createElement("p"); d.textContent = p.desc; card.appendChild(d);
   const u = document.createElement("p"); u.className = "use"; u.textContent = p.use; card.appendChild(u);
   if (p.tip) { const t = document.createElement("p"); t.className = "hint"; t.textContent = p.tip; card.appendChild(t); }
-  render(makeCtrl(card, p, render));
+  const vals = makeCtrl(card, p, render); render(vals);
+  if (p.build(vals).outline && container.id === "grid2" && !p.no3d) {
+    const b3 = document.createElement("button"); b3.type = "button"; b3.className = "to3d"; b3.textContent = "3D로 접어 보기";
+    b3.addEventListener("click", () => { window.show3D && window.show3D(p, vals); document.getElementById("sim").scrollIntoView({ behavior: "smooth", block: "start" }); });
+    card.appendChild(b3); sim3dList.push({ p, vals });
+  }
   container.appendChild(card);
 }
 patterns.forEach(p => addCard(p, grid));
@@ -419,7 +464,7 @@ function clipRect(a, b, W, H) {
 function rectCP(W, H, segs) {
   const lines = [];
   for (const s of segs) { const c = clipRect(s.a, s.b, W, H); if (c) lines.push({ a: [c[0][0], H - c[0][1]], b: [c[1][0], H - c[1][1]], t: s.t }); }
-  return { w: W, h: H, paper: `M0 0H${W}V${H}H0Z`, lines };
+  return { w: W, h: H, paper: `M0 0H${W}V${H}H0Z`, lines, outline: [[0, 0], [W, 0], [W, H], [0, H]] };
 }
 
 const advanced = [
@@ -432,7 +477,7 @@ const advanced = [
     build: p => rectCP(100, 100, twistLines(4, p.s, p.L, p.a, 100, 100))
   },
   {
-    id: "tritwist", name: "트라이앵글 트위스트 테셀레이션", en: "Triangle twist tessellation", lvl: "고급",
+    id: "tritwist", name: "트라이앵글 트위스트 테셀레이션", en: "Triangle twist tessellation", lvl: "고급", no3d: true,
     desc: "정삼각형 트위스트가 위아래로 뒤집히며 벌집처럼 이어져요. 비틀림 각도가 30°보다 커야 평평하게 접혀서 슬라이더를 그 범위로 맞춰 두었어요.",
     use: "육각형 리듬이 생겨서 스카프, 케이프, 구조적인 어깨 장식에 어울려요.",
     tip: "삼각형 하나를 비틀 때 주변 플리츠 3개가 동시에 눕는 방향을 먼저 확인하고 접어요.",
@@ -456,7 +501,7 @@ const advanced = [
         const h0 = 50 * k / p.n, h1 = 50 * (k + 1) / p.n, t = k === 0 ? ring(0) : ring(k);
         for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) lines.push({ a: [c + sx * h0, c + sy * h0], b: [c + sx * h1, c + sy * h1], t });
       }
-      return { w: W, h: W, paper: `M0 0H${W}V${W}H0Z`, lines };
+      return { w: W, h: W, paper: `M0 0H${W}V${W}H0Z`, lines, outline: [[0, 0], [W, 0], [W, W], [0, W]] };
     }
   },
   {
@@ -546,7 +591,7 @@ advanced.push(
     desc: "육각형 트위스트와 삼각형 트위스트가 번갈아 이어지는 패턴이에요. 육각형은 한쪽으로, 삼각형은 반대쪽으로 돌아가요. 일본 바구니 짜임(가고메)과 같은 배열이에요.",
     use: "한지처럼 비치는 종이나 오간자로 만들면 육각형과 삼각형의 겹 차이가 별 무늬로 보여요.",
     tip: "육각형 하나를 먼저 완성하고, 주변 삼각형 6개를 반대 방향으로 비틀어 이어가요.",
-    params: [{ id: "e", label: "변 길이", min: 6, max: 16, step: 0.5, v: 12 }, { id: "a", label: "플리츠 각도", min: 32, max: 50, step: 1, v: 40 }, { id: "r", label: "플리츠 폭", min: 0.25, max: 0.6, step: 0.05, v: 0.4 }],
+    params: [{ id: "e", label: "변 길이", min: 6, max: 16, step: 0.5, v: 12 }, { id: "a", label: "플리츠 각도", min: 32, max: 50, step: 1, v: 40 }, { id: "r", label: "플리츠 폭", min: 0.2, max: 0.6, step: 0.05, v: 0.3 }],
     build: p => rectCP(100, 100, tilingTwist(TILINGS.kagome(), p.e, p.a, p.r, 100, 100))
   },
   {
@@ -577,10 +622,10 @@ advanced.push(
       const V = (i, j) => [i * cw, j * rh + (i % 2) * amp(j) + 0.8 * rh];
       for (let i = 0; i <= p.c; i++) for (let j = 0; j <= p.rws; j++) {
         if (i < p.c && j > 0 && j < p.rws) lines.push({ a: V(i, j), b: V(i + 1, j), t: j % 2 ? "M" : "V" });
-        if (j < p.rws && i > 0 && i < p.c) lines.push({ a: V(i, j), b: V(i, j + 1), t: (i + j) % 2 ? "M" : "V" });
+        if (j < p.rws && i > 0 && i < p.c) lines.push({ a: V(i, j), b: V(i, j + 1), t: ((i + j) % 2 === 1) !== (amp(j) < 0) ? "V" : "M" });
       }
       const top = Array.from({ length: p.c + 1 }, (_, i) => V(i, 0)), bot = Array.from({ length: p.c + 1 }, (_, i) => V(p.c - i, p.rws));
-      return { w: W, h: 66 + 1.6 * rh, paper: `M${top.concat(bot).map(q => q.join(" ")).join("L")}Z`, lines };
+      return { w: W, h: 66 + 1.6 * rh, paper: `M${top.concat(bot).map(q => q.join(" ")).join("L")}Z`, lines, outline: top.concat(bot) };
     }
   },
   {
@@ -612,7 +657,7 @@ advanced.push(
       for (let k = 1; k < p.k; k++) for (let i = 0; i < p.n; i++) lines.push({ a: pt(R * k / p.k, i), b: pt(R * k / p.k, i + 1), t: ring(k) });
       for (let k = 0; k < p.k; k++) for (let i = 0; i < p.n; i++) lines.push({ a: pt(R * k / p.k, i), b: pt(R * (k + 1) / p.k, i), t: ring(k) });
       const outer = Array.from({ length: p.n }, (_, i) => pt(R, i));
-      return { w: 100, h: 100, paper: `M${outer.map(q => q.join(" ")).join("L")}Z`, lines };
+      return { w: 100, h: 100, paper: `M${outer.map(q => q.join(" ")).join("L")}Z`, lines, outline: outer };
     }
   }
 );
@@ -649,7 +694,7 @@ advanced.forEach(p => addCard(p, document.getElementById("grid2")));
     for (let i = 0; i <= cols; i++) for (let j = 0; j <= rows; j++) {
       const p = v[i][j];
       if (i < cols && j > 0 && j < rows) lines.push({ a: p, b: v[i + 1][j], t: j % 2 ? "M" : "V" });
-      if (j < rows && i > 0 && i < cols) lines.push({ a: p, b: v[i][j + 1], t: (i + j) % 2 ? "M" : "V" });
+      if (j < rows && i > 0 && i < cols) lines.push({ a: p, b: v[i][j + 1], t: (i + j) % 2 ? "V" : "M" });
     }
     const top = v.map(c => c[0]), bot = v.map(c => c[rows]).reverse();
     const all = v.flat(), w = Math.max(...all.map(p => p[0])), h = Math.max(...all.map(p => p[1]));
@@ -715,5 +760,217 @@ advanced.forEach(p => addCard(p, document.getElementById("grid2")));
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw3d);
   new MutationObserver(draw3d).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   draw3d();
+})();
+
+// BEGIN sim
+// Crease pattern -> triangle mesh. Creases and the paper outline are split at every crossing,
+// faces are traced from the planar graph, and each (convex) face is fanned from its centroid.
+function buildMesh(cp) {
+  const segs = cp.lines.filter(l => l.a).map(l => ({ a: l.a, b: l.b, t: l.t }));
+  const O = cp.outline; O.forEach((p, i) => segs.push({ a: p, b: O[(i + 1) % O.length], t: "B" }));
+  const ts = segs.map(() => [0, 1]), E = 1e-7;
+  const box = segs.map(s => [Math.min(s.a[0], s.b[0]) - 0.01, Math.max(s.a[0], s.b[0]) + 0.01, Math.min(s.a[1], s.b[1]) - 0.01, Math.max(s.a[1], s.b[1]) + 0.01]);
+  for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) {
+    const A = box[i], B = box[j]; if (A[1] < B[0] || B[1] < A[0] || A[3] < B[2] || B[3] < A[2]) continue;
+    const p = segs[i].a, r = [segs[i].b[0] - p[0], segs[i].b[1] - p[1]], q = segs[j].a, s = [segs[j].b[0] - q[0], segs[j].b[1] - q[1]];
+    const den = r[0] * s[1] - r[1] * s[0]; if (Math.abs(den) < E) continue;
+    const qp = [q[0] - p[0], q[1] - p[1]], t = (qp[0] * s[1] - qp[1] * s[0]) / den, u = (qp[0] * r[1] - qp[1] * r[0]) / den;
+    const tl = 0.02 / Math.hypot(...r), ul = 0.02 / Math.hypot(...s);
+    if (t > -tl && t < 1 + tl && u > -ul && u < 1 + ul) { ts[i].push(Math.min(1, Math.max(0, t))); ts[j].push(Math.min(1, Math.max(0, u))); }
+  }
+  const X = [], vmap = new Map();
+  const vid = p => {
+    const k = Math.round(p[0] / 0.03) + "," + Math.round(p[1] / 0.03);
+    if (!vmap.has(k)) { vmap.set(k, X.length); X.push([p[0], p[1]]); }
+    return vmap.get(k);
+  };
+  const emap = new Map();
+  segs.forEach((s, i) => {
+    const tt = [...new Set(ts[i].map(t => Math.round(t * 1e6) / 1e6))].sort((a, b) => a - b);
+    let prev = null;
+    for (const t of tt) {
+      const id = vid([s.a[0] + t * (s.b[0] - s.a[0]), s.a[1] + t * (s.b[1] - s.a[1])]);
+      if (prev !== null && prev !== id) {
+        const k = Math.min(prev, id) + "_" + Math.max(prev, id);
+        if (!emap.has(k) || emap.get(k).t === "B") emap.set(k, { i: Math.min(prev, id), j: Math.max(prev, id), t: s.t });
+      }
+      prev = id;
+    }
+  });
+  const nb = X.map(() => []);
+  for (const e of emap.values()) { nb[e.i].push(e.j); nb[e.j].push(e.i); }
+  nb.forEach((list, v) => list.sort((a, b) => Math.atan2(X[a][1] - X[v][1], X[a][0] - X[v][0]) - Math.atan2(X[b][1] - X[v][1], X[b][0] - X[v][0])));
+  const used = new Set(), faces = [];
+  for (let u = 0; u < X.length; u++) for (const v0 of nb[u]) {
+    if (used.has(u + ">" + v0)) continue;
+    const f = []; let a = u, b = v0, guard = 0;
+    while (!used.has(a + ">" + b) && guard++ < 500) {
+      used.add(a + ">" + b); f.push(a);
+      const L = nb[b], i = L.indexOf(a), c = L[(i - 1 + L.length) % L.length];
+      a = b; b = c;
+    }
+    let area = 0; f.forEach((p, k) => { const q = f[(k + 1) % f.length]; area += X[p][0] * X[q][1] - X[q][0] * X[p][1]; });
+    if (area > 1e-6 && f.length >= 3) faces.push(f);
+  }
+  const edges = [...emap.values()], tris = [];
+  for (const f of faces) {
+    if (f.length === 3) { tris.push(f); continue; }
+    const c = X.length; X.push([f.reduce((s, p) => s + X[p][0], 0) / f.length, f.reduce((s, p) => s + X[p][1], 0) / f.length]);
+    f.forEach((p, k) => { tris.push([c, p, f[(k + 1) % f.length]]); edges.push({ i: c, j: p, t: "F" }); });
+  }
+  const etype = new Map(edges.map(e => [Math.min(e.i, e.j) + "_" + Math.max(e.i, e.j), e.t]));
+  const half = new Map(), hinges = [];
+  tris.forEach(t => [[0, 1, 2], [1, 2, 0], [2, 0, 1]].forEach(([x, y, z]) => half.set(t[x] + ">" + t[y], t[z])));
+  for (const [k, c] of half) {
+    const [a, b] = k.split(">").map(Number); if (a > b) continue;
+    const d = half.get(b + ">" + a); if (d === undefined) continue;
+    const t = etype.get(a + "_" + b) || "F";
+    if (t === "M" || t === "V" || t === "F") hinges.push({ a, b, c, d, t, th: 0 });
+  }
+  return { X, tris, edges, hinges, faces: faces.length };
+}
+
+// Position-based solver: edge lengths are hard constraints, every hinge pulls toward its target
+// dihedral angle (mountain +, valley −; facets toward flat).
+function makeSim(mesh) {
+  const N = mesh.X.length, x = new Float64Array(N * 3), xp = new Float64Array(N * 3), f = new Float64Array(N * 3);
+  let cx = 0, cy = 0; mesh.X.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= N; cy /= N;
+  mesh.X.forEach((p, i) => { x[3 * i] = p[0] - cx; x[3 * i + 1] = p[1] - cy; x[3 * i + 2] = 0; });
+  // a tiny out-of-plane wobble breaks the flat-state symmetry
+  for (let i = 0; i < N; i++) x[3 * i + 2] = (Math.sin(i * 12.9898) * 43758.5453 % 1) * 1e-3;
+  xp.set(x);
+  const E = mesh.edges.map(e => ({ i: e.i, j: e.j, L: Math.hypot(mesh.X[e.i][0] - mesh.X[e.j][0], mesh.X[e.i][1] - mesh.X[e.j][1]) }));
+  const meanL = E.reduce((s, e) => s + e.L, 0) / E.length;
+  const H = mesh.hinges.map(h => ({ ...h, L: Math.hypot(mesh.X[h.a][0] - mesh.X[h.b][0], mesh.X[h.a][1] - mesh.X[h.b][1]) / meanL }));
+  const sim = { x, N, fold: 0, facetK: 0.3, creaseK: 0.3, err: 0, gain: 0.08, cap: 0.05, damp: 0.85, iters: 12, rate: 0.004 };
+  const sub = (i, j) => [x[3 * i] - x[3 * j], x[3 * i + 1] - x[3 * j + 1], x[3 * i + 2] - x[3 * j + 2]];
+  const cr = (u, v) => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  const dt = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  sim.reset = () => { mesh.X.forEach((p, i) => { x[3 * i] = p[0] - cx; x[3 * i + 1] = p[1] - cy; x[3 * i + 2] = (Math.sin(i * 12.9898) * 43758.5453 % 1) * 1e-3; }); xp.set(x); H.forEach(h => h.th = 0); sim.fold = 0; };
+  sim.step = target => {
+    sim.fold += Math.max(-sim.rate, Math.min(sim.rate, target - sim.fold));
+    f.fill(0);
+    let err = 0, nc = 0;
+    for (const h of H) {
+      const e = sub(h.b, h.a), el = Math.hypot(...e); if (el < 1e-9) continue;
+      const eh = e.map(v => v / el), ca = sub(h.c, h.a), da = sub(h.d, h.a);
+      let n1 = cr(e, ca), n2 = cr(e.map(v => -v), sub(h.d, h.b));
+      const l1 = Math.hypot(...n1), l2 = Math.hypot(...n2); if (l1 < 1e-12 || l2 < 1e-12) continue;
+      n1 = n1.map(v => v / l1); n2 = n2.map(v => v / l2);
+      let th = Math.atan2(dt(cr(n1, n2), eh), dt(n1, n2));
+      while (th - h.th > Math.PI) th -= 2 * Math.PI; while (th - h.th < -Math.PI) th += 2 * Math.PI;
+      h.th = th;
+      const goal = h.t === "M" ? Math.PI * sim.fold : h.t === "V" ? -Math.PI * sim.fold : 0;
+      if (h.t !== "F") { err += Math.abs(goal - th); nc++; }
+      const k = (h.t === "F" ? sim.facetK : sim.creaseK) * h.L * (goal - th);
+      const h1 = Math.max(l1 / el, 0.15 * el), h2 = Math.max(l2 / el, 0.15 * el);
+      const t1 = dt(ca, e) / (el * el), t2 = dt(da, e) / (el * el);
+      const gc = n1.map(v => -v / h1), gd = n2.map(v => -v / h2);
+      for (let q = 0; q < 3; q++) {
+        f[3 * h.c + q] += k * gc[q]; f[3 * h.d + q] += k * gd[q];
+        f[3 * h.a + q] -= k * ((1 - t1) * gc[q] + (1 - t2) * gd[q]);
+        f[3 * h.b + q] -= k * (t1 * gc[q] + t2 * gd[q]);
+      }
+    }
+    sim.err = nc ? err / nc : 0;
+    const gain = sim.gain * meanL, cap = sim.cap * meanL;
+    for (let i = 0; i < 3 * N; i += 3) {
+      let dx = f[i] * gain, dy = f[i + 1] * gain, dz = f[i + 2] * gain;
+      const m = Math.hypot(dx, dy, dz); if (m > cap) { dx *= cap / m; dy *= cap / m; dz *= cap / m; }
+      for (const [o, d] of [[0, dx], [1, dy], [2, dz]]) { const v = (x[i + o] - xp[i + o]) * sim.damp; xp[i + o] = x[i + o]; x[i + o] += v + d; }
+    }
+    for (let it = 0; it < sim.iters; it++) for (const e of E) {
+      const i = 3 * e.i, j = 3 * e.j, dx = x[i] - x[j], dy = x[i + 1] - x[j + 1], dz = x[i + 2] - x[j + 2];
+      const d = Math.hypot(dx, dy, dz) || 1e-9, c = 0.5 * (d - e.L) / d;
+      x[i] -= c * dx; x[i + 1] -= c * dy; x[i + 2] -= c * dz; x[j] += c * dx; x[j + 1] += c * dy; x[j + 2] += c * dz;
+    }
+    let mx = 0, my = 0, mz = 0; for (let i = 0; i < 3 * N; i += 3) { mx += x[i]; my += x[i + 1]; mz += x[i + 2]; }
+    mx /= N; my /= N; mz /= N;
+    for (let i = 0; i < 3 * N; i += 3) { x[i] -= mx; x[i + 1] -= my; x[i + 2] -= mz; xp[i] -= mx; xp[i + 1] -= my; xp[i + 2] -= mz; }
+  };
+  sim.strain = () => { let s = 0; for (const e of E) { const i = 3 * e.i, j = 3 * e.j; s += Math.abs(Math.hypot(x[i] - x[j], x[i + 1] - x[j + 1], x[i + 2] - x[j + 2]) - e.L) / e.L; } return s / E.length; };
+  return sim;
+}
+// END sim
+
+(() => {
+  const pick = document.getElementById("sim-pick"), host = document.getElementById("sim-canvas"), status = document.getElementById("sim-status");
+  const fold = document.getElementById("sim-fold"), facet = document.getElementById("sim-facet");
+  sim3dList.forEach((it, k) => { const o = document.createElement("option"); o.value = k; o.textContent = it.p.name; pick.appendChild(o); });
+  if (!window.THREE) { status.textContent = "3D 라이브러리를 불러오지 못했어요. 네트워크를 확인하고 새로고침해 주세요."; return; }
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  host.appendChild(renderer.domElement);
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(35, 1, 0.1, 5000);
+  camera.position.set(60, -150, 140); camera.up.set(0, 0, 1);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
+  let userCam = false; controls.addEventListener("start", () => userCam = true);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445544, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(80, -60, 160); scene.add(sun);
+  const sun2 = new THREE.DirectionalLight(0xffffff, 0.35); sun2.position.set(-80, 60, -120); scene.add(sun2);
+  const front = new THREE.MeshLambertMaterial({ color: 0xf6f5ef, side: THREE.FrontSide, flatShading: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  const back = new THREE.MeshLambertMaterial({ color: 0x5f8a62, side: THREE.BackSide, flatShading: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  let mesh = null, sim = null, objs = [], lineGeo = null, triGeo = null, playing = false, dir = 1, cur = null;
+
+  function load(k) {
+    const it = sim3dList[k]; cur = k; pick.value = k;
+    objs.forEach(o => { scene.remove(o); o.geometry.dispose(); }); objs = [];
+    status.textContent = "메시 만드는 중…";
+    const cp = it.p.build(it.vals);
+    mesh = buildMesh(cp); sim = makeSim(mesh); sim.facetK = +facet.value;
+    triGeo = new THREE.BufferGeometry();
+    triGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(mesh.tris.length * 9), 3));
+    const crease = mesh.edges.filter(e => e.t === "M" || e.t === "V");
+    lineGeo = new THREE.BufferGeometry(); lineGeo.userData.edges = crease;
+    lineGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(crease.length * 6), 3));
+    const col = new Float32Array(crease.length * 6), cM = new THREE.Color(css("--mountain")), cV = new THREE.Color(css("--valley"));
+    crease.forEach((e, n) => { const c = e.t === "M" ? cM : cV; col.set([c.r, c.g, c.b, c.r, c.g, c.b], n * 6); });
+    lineGeo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    objs = [new THREE.Mesh(triGeo, front), new THREE.Mesh(triGeo, back), new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ vertexColors: true }))];
+    objs[2].visible = document.getElementById("sim-lines").checked;
+    objs.forEach(o => scene.add(o));
+    controls.target.set(0, 0, 0); userCam = false;
+    camera.position.set(45, -125, 115);
+    sync();
+  }
+  function sync() {
+    const x = sim.x, P = triGeo.attributes.position.array;
+    mesh.tris.forEach((t, n) => t.forEach((v, q) => { P[n * 9 + q * 3] = x[3 * v]; P[n * 9 + q * 3 + 1] = x[3 * v + 1]; P[n * 9 + q * 3 + 2] = x[3 * v + 2]; }));
+    triGeo.attributes.position.needsUpdate = true; triGeo.computeVertexNormals(); triGeo.computeBoundingSphere();
+    const L = lineGeo.attributes.position.array, lift = 0.06;
+    lineGeo.userData.edges.forEach((e, n) => { for (let q = 0; q < 3; q++) { L[n * 6 + q] = x[3 * e.i + q]; L[n * 6 + 3 + q] = x[3 * e.j + q]; } L[n * 6 + 2] += lift; L[n * 6 + 5] += lift; });
+    lineGeo.attributes.position.needsUpdate = true;
+  }
+  function size() { const w = host.clientWidth, h = host.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  let frame = 0;
+  function tick() {
+    requestAnimationFrame(tick);
+    if (sim) {
+      let target = +fold.value / 100;
+      if (playing) { target = dir > 0 ? 0.98 : 0; if (Math.abs(sim.fold - target) < 0.002) dir = -dir; }
+      const t0 = performance.now(); let n = 0;
+      while (performance.now() - t0 < 12 && n < 40) { sim.step(target); n++; }
+      sync();
+      if (!userCam && triGeo.boundingSphere) {
+        const want = triGeo.boundingSphere.radius / Math.sin(camera.fov * Math.PI / 360) * 1.1, cur = camera.position.length();
+        camera.position.multiplyScalar(1 + (want / cur - 1) * 0.05);
+      }
+      if (++frame % 15 === 0) status.textContent = `꼭짓점 ${mesh.X.length} · 삼각형 ${mesh.tris.length} · 접힘 ${Math.round(sim.fold * 100)}% · 각도 오차 ${(sim.err * 180 / Math.PI).toFixed(1)}° · 늘어남 ${(sim.strain() * 100).toFixed(2)}%`;
+    }
+    controls.update(); renderer.render(scene, camera);
+  }
+  pick.addEventListener("change", () => load(+pick.value));
+  fold.addEventListener("input", () => { document.getElementById("sim-fold-o").textContent = fold.value + "%"; playing = false; document.getElementById("sim-play").textContent = "접었다 펴기 반복"; });
+  facet.addEventListener("input", () => { document.getElementById("sim-facet-o").textContent = (+facet.value).toFixed(2); if (sim) sim.facetK = +facet.value; });
+  document.getElementById("sim-play").addEventListener("click", e => { playing = !playing; dir = 1; e.target.textContent = playing ? "멈추기" : "접었다 펴기 반복"; });
+  document.getElementById("sim-reset").addEventListener("click", () => sim && sim.reset());
+  document.getElementById("sim-lines").addEventListener("change", e => { if (objs[2]) objs[2].visible = e.target.checked; });
+  window.show3D = p => { const k = sim3dList.findIndex(it => it.p === p); if (k >= 0) load(k); };
+  addEventListener("resize", size); new ResizeObserver(size).observe(host);
+  size();
+  const start = sim3dList.findIndex(it => it.p.id === "sqtwist");
+  load(start >= 0 ? start : 0);
+  window.__sim = { buildMesh, makeSim, list: sim3dList, state: () => sim };
+  tick();
 })();
 </script>
