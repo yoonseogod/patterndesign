@@ -348,20 +348,96 @@ def centroid(pc):
     pts = [p for e in pc['edges'] for p in e['pts']]
     return Polygon(pts).centroid
 
-pieces.remove(FA)
-up, low = sorted(split_piece(FA, (-14, 35.2), (32, 32.2), 1), key=lambda p: centroid(p).y)
-A1, A2 = sorted(split_piece(up, (0.6, -2), (5.6, 40), 2), key=lambda p: centroid(p).x)
-A3, low2 = sorted(split_piece(low, (-16, 67.4), (32, 57.0), 2), key=lambda p: centroid(p).y)
-A4, A5 = sorted(split_piece(low2, (1.0, 50), (15.0, 100), 1), key=lambda p: centroid(p).x)
-FRONT_PANELS = [('1-1', '앞판 A-1 (상단 중앙)', A1), ('1-2', '앞판 A-2 (상단 옆)', A2),
-                ('1-3', '앞판 A-3 (중단)', A3), ('1-4', '앞판 A-4 (하단 중앙)', A4), ('1-5', '앞판 A-5 (하단 옆)', A5)]
+# ================================================================ FRONT REBUILD
+# Darts are moved INTO seams (no dart is cut by a panel line):
+#  - left : side bust dart -> armhole, then armhole princess line through BP absorbs both darts
+#  - right: side bust dart -> style line (A/B seam) through BP
+def rot(pts, c, ang):
+    ca, sa_ = math.cos(ang), math.sin(ang)
+    return [(c[0]+(x-c[0])*ca-(y-c[1])*sa_, c[1]+(x-c[0])*sa_+(y-c[1])*ca) for x, y in pts]
+def angle_to(c, p): return math.atan2(p[1]-c[1], p[0]-c[0])
+def sub(pts, d0, d1): return list(substring(LineString(pts), d0, d1).coords)
+
+pieces.remove(FA); pieces.remove(FB)
+BPL = (9.0, 26.0)
+W1, W2, DT = (7.25, 42.0), (10.75, 42.0), (9.0, 56.0)
+# left armhole princess point: 9cm above UA on the armhole
+FAL = plen(front_arm); AP = at(front_arm, FAL-9)
+arm_c = sub(front_arm, 0, FAL-9)                 # SP -> AP   (centre panel)
+arm_s = sub(front_arm, FAL-9, FAL)               # AP -> UA   (side panel, rotated)
+S1, S2 = at(side_L, 5), at(side_L, 8)
+phiL = angle_to(BPL, S2) - angle_to(BPL, S1)
+arm_s_r = rot(arm_s, BPL, phiL); UA_r = arm_s_r[-1]; AP_r = arm_s_r[0]
+hem_side, hem_rest = split_at_x(hem_A, 9.5); HL = hem_side[-1]   # (25,79)->HL , HL->...->HB
+prin_c = cr([AP, BPL, W1, DT, HL], 24)           # AP -> HL  (centre panel edge)
+prin_s = cr([AP_r, BPL, W2, DT, HL], 24)         # AP'-> HL  (side panel edge)
+side_s = side_seam(UA_r, W_F, HIP_F, (HEMSIDE, hem_f(HEMSIDE)))
+
+CEN = piece('1  앞 중심판', [
+    dict(pts=neck_fA, sa=0, n='neck'),            # T -> SNP
+    dict(pts=line(SNP_F, SP_F), sa=1),
+    dict(pts=arm_c, sa=1, n='arm'),               # SP -> AP
+    dict(pts=prin_c, sa=1, n='princess'),         # AP -> HL
+    dict(pts=hem_rest, sa=2),                     # HL -> HB
+    dict(pts=style_A, sa=1, n='style'),           # HB -> T
+], quilt=True)
+SIDE = piece('1  앞 옆판', [
+    dict(pts=arm_s_r, sa=1, n='arm'),             # AP' -> UA'
+    dict(pts=side_s, sa=1),                       # UA' -> hem
+    dict(pts=hem_side, sa=2),                     # hem side -> HL
+    dict(pts=rev(prin_s), sa=1, n='princess'),    # HL -> AP'
+], quilt=True)
+
+# right: close side dart of B by rotating its top wedge about BPR -> dart goes into style line
+S1r, S2r = at(side_R, 4), at(side_R, 7)
+phiR = angle_to(BPR, S2r) - angle_to(BPR, S1r)
+neck_B_r = rot(neck_fB, BPR, phiR)               # TOP_R' -> T'
+up_B_r = rot(style_up, BPR, phiR)                # BPR -> T'
+TOP_Rr = neck_B_r[0]
+low_B = style_lower(-10.75)                       # HB -> BPR
+side_Rn = side_seam(TOP_Rr, (-21.5, 42), (-24.5, 60), (-HEMSIDE, hem_f(-HEMSIDE)))
+FBN = piece('2  앞판 B', [
+    dict(pts=neck_B_r, sa=0, n='neck'),
+    dict(pts=rev(up_B_r) + rev(low_B)[1:], sa=1, n='style'),   # T' -> BPR -> HB
+    dict(pts=hem_B, sa=2),
+    dict(pts=rev(side_Rn), sa=1),
+])
+FBN['grain'] = 'auto'; FBN['autolabel'] = True
+FBN['label'] = ['2  앞판 B', '거즈/튤 베이스 x1', '+ 실 장식 손바느질']
+FBN['guides'] = [('WL', [(-30, 42), (0, 42)]), ('HL', [(-30, 60), (0, 60)])]
+FBN['notches'] = [(BPR, 1), (at(low_B, plen(low_B)-16), 2)]
+
+CEN['guides'] = [('BL', [(-30, 26), (40, 26)]), ('WL', [(-30, 42), (40, 42)]),
+                 ('HL', [(-30, 60), (40, 60)]), ('CF', [(0, -5), (0, 100)])]
+CEN['applique'] = FA['applique']
+CEN['notches'] = [(BPR, 1), (at(style_A, plen(style_A)-plen(style_up)-16), 2), (BPL, 1), (W1, 2)]
+SIDE['guides'] = [('WL', [(0, 42), (40, 42)]), ('HL', [(0, 60), (40, 60)])]
+SIDE['applique'] = FA['applique']
+SIDE['notches'] = [(BPL, 1), (W2, 2), (at(arm_s_r, plen(arm_s_r)-8), 1)]
+
+# ---- patchwork panel lines (no darts inside the panels any more)
+L1 = ((-14, 46.5), (32, 31.5))
+L2 = ((-14, 62.0), (12, 69.0))
+c_up, c_rest = sorted(split_piece(CEN, *L1, 1), key=lambda p: centroid(p).y)
+c_mid, c_low = sorted(split_piece(c_rest, *L2, 2), key=lambda p: centroid(p).y)
+# side panel: L1 must hit the princess seam at the SAME distance from the armhole as on the centre panel
+_xc = LineString(prin_c).intersection(LineString(L1))
+d_c = LineString(prin_c).project(_xc)
+Qs = at(prin_s, d_c)
+_xs = LineString(side_s).intersection(LineString(L1)); Xs = (_xs.x, _xs.y)
+_dx, _dy = Xs[0]-Qs[0], Xs[1]-Qs[1]; _n = math.hypot(_dx, _dy); _dx, _dy = _dx/_n, _dy/_n
+L1s = ((Qs[0]-3*_dx, Qs[1]-3*_dy), (Xs[0]+3*_dx, Xs[1]+3*_dy))
+s_up, s_low = sorted(split_piece(SIDE, *L1s, 1), key=lambda p: centroid(p).y)
+pieces.remove(CEN); pieces.remove(SIDE)
+FRONT_PANELS = [('1-1', '앞 중심 상단', c_up), ('1-2', '앞 중심 중단', c_mid), ('1-3', '앞 중심 하단', c_low),
+                ('1-4', '앞 옆판 상단', s_up), ('1-5', '앞 옆판 하단', s_low)]
 for code, nm, p in FRONT_PANELS:
-    p['name'] = code + '  ' + nm.split(' (')[0]
-    p['code'] = code; p['label'] = [code + '  ' + nm.split(' ')[0] + ' ' + nm.split(' ')[1], nm.split(' ', 2)[2] if nm.count(' ') > 1 else '', '퀼팅 x1 (겉면 위로)']
-    p['texts'] = [t for t in FA['texts'] if t[1] == ['CF'] and Polygon([q for e in p['edges'] for q in e['pts']]).contains(Point(t[0]))]
-    p['autolabel'] = True; p['grain'] = 'auto'
-    pieces.insert(0, p)
+    p['name'] = f'{code}  {nm}'
+    p['label'] = [f'{code}  {nm}', '퀼팅 x1 (겉면 위로)']
+    p['autolabel'] = True; p['grain'] = 'auto'; p['texts'] = []; p['marks'] = []; p['dartlabels'] = []
+    pieces.append(p)
 pieces.sort(key=lambda p: p['name'])
+FRONT_LINES = dict(princess=prin_c, style=style_A, L1=L1, L2=L2)
 
 for pc in pieces: compute(pc)
 

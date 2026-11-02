@@ -25,10 +25,9 @@ from shapely.affinity import translate as _tr
 TEST_SQ = (1.0, 1.0)
 TITLE_AT = (8.0, 1.0)
 GAP = 0.8
-def auto_layout():
+def auto_layout(order):
     placed = [_box(TEST_SQ[0]-GAP, TEST_SQ[1]-GAP, TEST_SQ[0]+5+GAP, TEST_SQ[1]+5+GAP),
               _box(TITLE_AT[0]-GAP, 0, TITLE_AT[0]+44, TITLE_AT[1]+6.5)]
-    order = sorted(pieces, key=lambda p: -(p['bbox'][3]-p['bbox'][1])*(p['bbox'][2]-p['bbox'][0]))
     for pc in order:
         P0 = Polygon(pc['cut']).buffer(GAP/2).simplify(.1)
         b = P0.bounds; w, h = b[2]-b[0], b[3]-b[1]
@@ -49,7 +48,19 @@ def auto_layout():
             if done: break
         assert done, pc['name']
     return max(q.bounds[3] for q in placed)
-CONTENT_H = auto_layout()
+def _bb(p): b = p['bbox']; return b[2]-b[0], b[3]-b[1]
+_orders = [sorted(pieces, key=lambda p: -_bb(p)[0]*_bb(p)[1]),
+           sorted(pieces, key=lambda p: -_bb(p)[1]),
+           sorted(pieces, key=lambda p: -_bb(p)[0]),
+           sorted(pieces, key=lambda p: -max(_bb(p)))]
+_best = None
+for _o in _orders:
+    _h = auto_layout(_o)
+    _snap = {id(p): p['off'] for p in pieces}
+    _rows = math.ceil((_h+0.5)/TILE_H)
+    if _best is None or (_rows, _h) < _best[0]: _best = ((_rows, _h), _snap)
+for p in pieces: p['off'] = _best[1][id(p)]
+CONTENT_H = _best[0][1]
 ROWS = math.ceil((CONTENT_H+0.5)/TILE_H)
 CANVAS_H = ROWS*TILE_H
 ROWNAMES = 'ABCDEFGH'
@@ -277,6 +288,46 @@ def used_tiles():
 
 def tile_name(r, col): return f'{ROWNAMES[r]}{col+1}'
 
+
+# ------------------------------------------------------------- assembly diagram (what the sewn dress looks like)
+def page_assembly(c):
+    from shapely.ops import unary_union
+    W, H = landscape(A4); c.setPageSize((W, H))
+    c.setFont('KR', 15); c.setFillColor(black)
+    c.drawString(1.6*CM, H-1.35*CM, '조립도 — 패널이 완성된 옷에서 놓이는 위치')
+    c.setFont('KR', 8.5); c.setFillColor(GREY)
+    c.drawString(1.6*CM, H-1.95*CM, '축척 1:6 · 완성선 기준 · 빨간 점선 = 패치워크 패널선 · 검은 실선 = 프린세스선/스타일선 · 앞판 다트는 모두 솔기로 이동')
+    s = 1/6
+    def outline(pc): return Polygon([p for e in pc['edges'] for p in e['pts']])
+    front = unary_union([outline(m.FA), outline(m.FB)]).buffer(.01).buffer(-.01)
+    vf = View(c, -27, -3, s, 2.2*CM, H-2.8*CM)
+    o = (0, 0)
+    poly(vf, list(front.exterior.coords), o, closed=True, width=1.1)
+    for key in ('princess', 'style'):
+        for seg in clip_lines(front.buffer(.01), m.FRONT_LINES[key]): poly(vf, seg, o, width=.9)
+    region = {'L1': outline(m.FA), 'L2': outline(m.CEN)}
+    for key in ('L1', 'L2'):
+        a, b = m.FRONT_LINES[key]
+        for seg in clip_lines(region[key].buffer(.01), [a, b]):
+            poly(vf, seg, o, width=1.1, color=RED, dash=(5, 2))
+    # L2 only on the centre panel: mask beyond princess handled by clipping to centre region
+    for k, cpt, ang in m.FA['applique']:
+        poly(vf, m.tri_at(k, cpt, ang), o, closed=True, width=.7, color=RED)
+    for txt, (x, y) in [('1-1', (2, 28)), ('1-2', (2.5, 58)), ('1-3', (-1, 78)), ('1-4', (17, 33)),
+                        ('1-5', (17, 60)), ('2 (B)', (-17, 52))]:
+        text_c(vf, x, y, [txt], 11, o)
+    text_c(vf, 0, -1.6, ['앞 (겉에서 본 모습)'], 10, o, color=GREY)
+    text_c(vf, 27, 2, ['← 소매 · 체크 드레이프', '(착용자 왼쪽)'], 7.5, o, color=GREY)
+    # back, seen from behind: wearer's left on the viewer's left -> mirror
+    vb = View(c, -27, -3, s, W/2+1.0*CM, H-2.8*CM)
+    for pc in (m.BL, m.BR):
+        pts = [(-x, y) for x, y in pc['seam']]
+        poly(vb, pts, o, closed=True, width=1.1)
+        for mk in pc['marks']: poly(vb, [(-x, y) for x, y in mk], o, width=.6)
+    text_c(vb, -12, 50, ['3'], 11, o); text_c(vb, 12, 50, ['4'], 11, o)
+    text_c(vb, 0, -1.6, ['뒤 (뒤에서 본 모습)'], 10, o, color=GREY)
+    text_c(vb, 1.6, 34, ['지퍼'], 7, o, color=GREY)
+
 # ------------------------------------------------------------- page 2: info
 def page_info(c):
     W, H = A4
@@ -313,7 +364,7 @@ def page_info(c):
           [3.6, 2.6, 4.4, 6.8])
     h('2. 재단 목록  (모든 패턴은 겉면 기준 — 원단 겉면을 위로 하고 1장씩 재단, 뒤집지 말 것)')
     table([['번호', '패턴', '원단', '수량', '비고'],
-           ['1-1~1-5', '앞판 A 패널 5장', '아이보리 퀼팅 (면 + 솜 + 면)', '각 1', '패치워크로 연결, 아플리케 위치'],
+           ['1-1~1-5', '앞 중심판 3 + 옆판 2', '아이보리 퀼팅 (면 + 솜 + 면)', '각 1', '패치워크 연결, 다트 없음(솔기 처리)'],
            ['2', '앞판 B', '아이보리 거즈 또는 튤 (베이스)', '1', '위에 실 장식'],
            ['3', '뒤판 왼쪽', '아이보리 퀼팅', '1', 'CB 콘솔지퍼'],
            ['4', '뒤판 오른쪽', '아이보리 퀼팅', '1', 'CB 콘솔지퍼'],
@@ -326,19 +377,18 @@ def page_info(c):
     p('시접: 기본 1cm · 밑단 2cm · CB(지퍼) 2cm · 소매단 2.5cm · 네크라인 0 (바이어스로 감쌈) — 패턴에 포함되어 있음', indent=0)
     p('부자재: 콘솔지퍼 45cm 1개, 실 장식용 얀(레드·오렌지·머스터드·아이보리) 다량, 레드 지그재그 스티치용 실', indent=0)
     h('3. 봉제 순서')
-    steps = ['① 퀼팅 원단에 패턴을 놓고 재단 (점선 격자 = 6cm 다이아 퀼팅 가이드). 다트를 박는다 (패널선을 지나는 다트는 패널 연결 후 이어 박기).',
-             '② 앞판 A 패널 연결: A-1+A-2 → A-4+A-5 → 위·중·아래(A-3) 순서로 빨간 점선(패널선)끼리 너치 맞춰 봉제.',
-             '   이어진 앞판 A에 삼각 아플리케(7a·7b·7c)를 올리고 레드 실 지그재그 새틴 스티치로 고정.',
-             '③ 앞판 B 베이스에 얀을 루프/크로셰 메쉬로 손바느질 고정, 일부는 밑단 아래로 길게(바닥까지) 늘어뜨림.',
-             '④ 앞판 A + B 스타일선 연결 (BP·허리 너치 맞춤) → 솔기 위 레드 지그재그 장식 스티치.',
-             '⑤ 뒤판 CB에 콘솔지퍼(너치까지) 달고 아래는 박음. 왼쪽 어깨선 · 양 옆선 봉제.',
-             '⑥ 네크라인(앞 오른쪽 옆선 → 왼쪽 어깨 → 뒤 → 오른쪽 옆선) 바이어스로 감싸 처리. 오른쪽 윗선은 본 1~2개 권장.',
-             '⑦ 소매: 소매산 이세 처리 후 왼쪽 진동에 달기 (앞 너치 1개, 뒤 너치 2개, SP 맞춤).',
-             '⑧ 드레이프: 양 끝 셔링 10cm로 줄여 앞·뒤 진동 솔기 위에 고정, SP 너치를 어깨점에 맞추고 주름을 잡아 손바느질.',
+    steps = ['① 퀼팅 원단에 패턴을 놓고 재단 (점선 격자 = 6cm 다이아 퀼팅 가이드). 앞판에는 다트가 없고(솔기로 이동), 뒤판 다트만 박는다.',
+             '② 앞 중심판: 1-1 + 1-2 + 1-3 을 빨간 패널선끼리 너치 맞춰 연결. 앞 옆판: 1-4 + 1-5 연결.',
+             '③ 프린세스선: 중심판 + 옆판을 BP(너치 1개)·허리(너치 2개) 맞춰 봉제 — 가슴 입체가 여기서 생김.',
+             '④ 앞판 B 베이스에 얀을 루프/크로셰 메쉬로 손바느질 고정, 일부는 밑단 아래로 길게(바닥까지) 늘어뜨림.',
+             '⑤ 앞 중심판 + 앞판 B 스타일선 연결 (BP·허리 너치) → 솔기 위 레드 지그재그 장식 스티치. 삼각 아플리케 부착.',
+             '⑥ 뒤판 CB에 콘솔지퍼(너치까지) 달고 아래는 박음. 왼쪽 어깨선 · 양 옆선 봉제.',
+             '⑦ 네크라인(앞 오른쪽 옆선 → 왼쪽 어깨 → 뒤 → 오른쪽 옆선) 바이어스로 감싸 처리. 오른쪽 윗선은 본 1~2개 권장.',
+             '⑧ 소매: 이세 처리 후 왼쪽 진동에 달기 (앞 너치 1개, 뒤 너치 2개, SP 맞춤). 드레이프는 셔링 10cm → SP 맞춰 고정.',
              '⑨ 밑단 2cm 접어 마무리 → 밑단 레드 지그재그 스티치.']
     for t in steps: p(t, size=8.4)
     h('4. 인쇄 · 조립 방법')
-    for t in ['- 3페이지부터 실물 크기 A4입니다. 인쇄 시 반드시 "실제 크기 / 100%" 선택 (페이지 맞춤 해제).',
+    for t in ['- 4페이지부터 실물 크기 A4입니다. 인쇄 시 반드시 "실제 크기 / 100%" 선택 (페이지 맞춤 해제).',
               '- A1 페이지의 5cm × 5cm 테스트 사각형을 자로 확인한 뒤 나머지를 인쇄하세요.',
               '- 각 페이지의 오른쪽 · 아래 여백을 회색 테두리선에서 잘라내고, 옆 페이지 테두리선에 맞춰 붙입니다.',
               f'- 페이지 번호(A1~{ROWNAMES[ROWS-1]}{COLS})와 가장자리의 ◆ 표시를 1페이지 조립 지도에 맞춰 배치합니다.',
@@ -401,6 +451,7 @@ def build(path):
     c = canvas.Canvas(path, pagesize=A4)
     c.setTitle('비대칭 퀼팅 스레드 드레스 패턴 (A4)')
     page_overview(c); c.showPage()
+    page_assembly(c); c.showPage()
     page_info(c); c.showPage()
     used = used_tiles()
     for r in range(ROWS):
