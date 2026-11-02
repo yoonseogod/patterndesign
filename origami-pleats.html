@@ -68,6 +68,7 @@ canvas { width: 100%; height: 280px; display: block; background: var(--bg); bord
 button { font: inherit; font-size: 0.85rem; border: 1px solid var(--ink); background: transparent; color: var(--ink); border-radius: 3px; padding: 4px 12px; cursor: pointer; }
 .hint { font-size: 0.78rem; color: var(--muted); }
 
+.adv-head { margin: 44px 0 16px; display: flex; flex-direction: column; gap: 6px; }
 .method { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
 @media (max-width: 760px) { .method { grid-template-columns: 1fr; } }
 .method ol { margin: 8px 0 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; font-size: 0.92rem; max-width: 60ch; }
@@ -92,6 +93,13 @@ button { font: inherit; font-size: 0.85rem; border: 1px solid var(--ink); backgr
   </div>
 
   <div class="grid" id="grid"></div>
+
+  <div class="adv-head">
+    <span class="eyebrow">Advanced</span>
+    <h2>고급 패턴: 트위스트와 곡선 접기</h2>
+    <p class="lead">반복되는 비틀기와 곡선 주름으로 면 전체가 회전하거나 휘는 패턴이에요. 선이 많아서 A3 이상 크기의 얇고 질긴 종이(트레이싱지, 한지)를 추천해요.</p>
+  </div>
+  <div class="grid" id="grid2"></div>
 
   <div class="method">
     <div>
@@ -236,13 +244,21 @@ function miuraVerts(cols, rows, a, b, g, th) {
 
 function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
 
+let clipSeq = 0;
 function drawCP(svg, cp) {
   svg.innerHTML = "";
-  const pad = 2;
+  const pad = 2, cid = "clip" + (++clipSeq);
   svg.setAttribute("viewBox", `${-pad} ${-pad} ${cp.w + pad * 2} ${cp.h + pad * 2}`);
-  el("path", { d: cp.paper, fill: "var(--paper)", stroke: "var(--paper-edge)", "stroke-width": 0.5 }, svg);
+  const cl = el("clipPath", { id: cid }, el("defs", {}, svg));
+  el("path", { d: cp.paper, "fill-rule": "evenodd" }, cl);
+  el("path", { d: cp.paper, fill: "var(--paper)", "fill-rule": "evenodd", stroke: "var(--paper-edge)", "stroke-width": 0.5 }, svg);
   if (cp.glue) el("path", { d: `M${cp.glue.join("L")}Z`, fill: "var(--chip)", stroke: "none" }, svg);
-  for (const l of cp.lines) el("line", { x1: l.a[0], y1: l.a[1], x2: l.b[0], y2: l.b[1], stroke: l.t === "M" ? "var(--mountain)" : "var(--valley)", "stroke-width": 0.45, "stroke-dasharray": l.t === "M" ? "none" : "1.4 0.9", "stroke-linecap": "round" }, svg);
+  const g = el("g", { "clip-path": `url(#${cid})` }, svg);
+  for (const l of cp.lines) {
+    const st = { stroke: l.t === "M" ? "var(--mountain)" : "var(--valley)", "stroke-width": 0.45, "stroke-dasharray": l.t === "M" ? "none" : "1.4 0.9", "stroke-linecap": "round", fill: "none" };
+    if (l.circle) el("circle", { cx: l.circle[0], cy: l.circle[1], r: l.circle[2], ...st }, g);
+    else el("line", { x1: l.a[0], y1: l.a[1], x2: l.b[0], y2: l.b[1], ...st }, g);
+  }
 }
 
 // Side view: walk along the sheet, turning at each fold (partially folded)
@@ -278,7 +294,7 @@ function makeCtrl(card, p, onChange) {
 }
 
 const grid = document.getElementById("grid");
-for (const p of patterns) {
+function addCard(p, container) {
   const card = document.createElement("article"); card.className = "card";
   card.innerHTML = `<div class="card-head"><h3>${p.name} <span class="en">${p.en}</span></h3><span class="lvl">${p.lvl}</span></div>`;
   const svg = el("svg", { class: "cp", role: "img", "aria-label": `${p.name} 접기 도면` }, card);
@@ -291,9 +307,129 @@ for (const p of patterns) {
   }
   const d = document.createElement("p"); d.textContent = p.desc; card.appendChild(d);
   const u = document.createElement("p"); u.className = "use"; u.textContent = p.use; card.appendChild(u);
+  if (p.tip) { const t = document.createElement("p"); t.className = "hint"; t.textContent = p.tip; card.appendChild(t); }
   render(makeCtrl(card, p, render));
-  grid.appendChild(card);
+  container.appendChild(card);
 }
+patterns.forEach(p => addCard(p, grid));
+
+// BEGIN twist
+// Twist tessellation: n-gon twists (n=3 or 4) joined by pleats. Each pleat is shared by two
+// twists that are point reflections of each other; neighbours alternate mountain/valley.
+function twistLines(n, s, L, alphaDeg, W, H) {
+  const al = alphaDeg * Math.PI / 180, R = s / (2 * Math.sin(Math.PI / n));
+  const phi0 = n === 4 ? -3 * Math.PI / 4 : -5 * Math.PI / 6;
+  const base = Array.from({ length: n }, (_, k) => [R * Math.cos(phi0 + 2 * Math.PI * k / n), R * Math.sin(phi0 + 2 * Math.PI * k / n)]);
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1]], mul = (a, k) => [a[0] * k, a[1] * k];
+  const key = p => p.map(v => Math.round(v * 100)).join(",");
+  const first = { P: base.map(p => add(p, [W / 2, H / 2])), par: 0 };
+  const seen = new Map([[key(mean(first.P)), first]]), queue = [first], segs = [], pleats = new Set();
+  const lim = Math.max(W, H) * 0.9;
+  function mean(P) { return mul(P.reduce(add, [0, 0]), 1 / P.length); }
+  const flip = (t, par) => par ? (t === "M" ? "V" : "M") : t;
+  while (queue.length) {
+    const tw = queue.shift(), P = tw.P, c = mean(P);
+    for (let k = 0; k < n; k++) segs.push({ a: P[k], b: P[(k + 1) % n], t: flip("M", tw.par) });
+    for (let k = 0; k < n; k++) {
+      const a = P[k], b = P[(k + 1) % n], mid = mul(add(a, b), 0.5);
+      const nx = mid[0] - c[0], ny = mid[1] - c[1], nl = Math.hypot(nx, ny);
+      const d = [(nx * Math.cos(al) - ny * Math.sin(al)) / nl, (nx * Math.sin(al) + ny * Math.cos(al)) / nl];
+      const qa = add(a, mul(d, L)), qb = add(b, mul(d, L)), O = mul(add(a, qb), 0.5);
+      if (!pleats.has(key(O))) {
+        pleats.add(key(O));
+        segs.push({ a, b: qa, t: flip("V", tw.par) }, { a: b, b: qb, t: flip("M", tw.par) });
+      }
+      const NP = P.map(p => [2 * O[0] - p[0], 2 * O[1] - p[1]]), nc = mean(NP);
+      if (Math.abs(nc[0] - W / 2) < lim && Math.abs(nc[1] - H / 2) < lim && !seen.has(key(nc))) {
+        const nt = { P: NP, par: 1 - tw.par }; seen.set(key(nc), nt); queue.push(nt);
+      }
+    }
+  }
+  return segs;
+}
+// END twist
+
+// Liang-Barsky clip of a segment to the rectangle [0,W]x[0,H]
+function clipRect(a, b, W, H) {
+  let t0 = 0, t1 = 1; const dx = b[0] - a[0], dy = b[1] - a[1];
+  for (const [p, q] of [[-dx, a[0]], [dx, W - a[0]], [-dy, a[1]], [dy, H - a[1]]]) {
+    if (Math.abs(p) < 1e-12) { if (q < 0) return null; continue; }
+    const r = q / p; if (p < 0) { if (r > t1) return null; if (r > t0) t0 = r; } else { if (r < t0) return null; if (r < t1) t1 = r; }
+  }
+  if (t1 - t0 < 1e-9) return null;
+  return [[a[0] + t0 * dx, a[1] + t0 * dy], [a[0] + t1 * dx, a[1] + t1 * dy]];
+}
+function rectCP(W, H, segs) {
+  const lines = [];
+  for (const s of segs) { const c = clipRect(s.a, s.b, W, H); if (c) lines.push({ a: [c[0][0], H - c[0][1]], b: [c[1][0], H - c[1][1]], t: s.t }); }
+  return { w: W, h: H, paper: `M0 0H${W}V${H}H0Z`, lines };
+}
+
+const advanced = [
+  {
+    id: "sqtwist", name: "스퀘어 트위스트 테셀레이션", en: "Square twist tessellation", lvl: "고급",
+    desc: "정사각형을 비틀어 접는 단위가 플리츠로 이어져 반복돼요. 다 접으면 정사각형들이 시계 방향과 반시계 방향으로 번갈아 돌아간 평면이 돼요.",
+    use: "빛을 비추면 겹 수 차이로 무늬가 드러나요. 반투명 원단, 드레스 앞판, 램프 셰이드에 좋아요.",
+    tip: "접는 순서: 모든 선을 하나씩 따로 접었다 펴 둔 다음, 가운데 정사각형부터 비틀어 모으며 바깥으로 넓혀 가요.",
+    params: [{ id: "s", label: "정사각형", min: 6, max: 16, step: 0.5, v: 10 }, { id: "L", label: "플리츠 길이", min: 4, max: 14, step: 0.5, v: 8 }, { id: "a", label: "비틀림 각도", min: 12, max: 40, step: 1, v: 27 }],
+    build: p => rectCP(100, 100, twistLines(4, p.s, p.L, p.a, 100, 100))
+  },
+  {
+    id: "tritwist", name: "트라이앵글 트위스트 테셀레이션", en: "Triangle twist tessellation", lvl: "고급",
+    desc: "정삼각형 트위스트가 위아래로 뒤집히며 벌집처럼 이어져요. 비틀림 각도가 30°보다 커야 평평하게 접혀서 슬라이더를 그 범위로 맞춰 두었어요.",
+    use: "육각형 리듬이 생겨서 스카프, 케이프, 구조적인 어깨 장식에 어울려요.",
+    tip: "삼각형 하나를 비틀 때 주변 플리츠 3개가 동시에 눕는 방향을 먼저 확인하고 접어요.",
+    params: [{ id: "s", label: "삼각형", min: 8, max: 20, step: 0.5, v: 13 }, { id: "L", label: "플리츠 길이", min: 3, max: 12, step: 0.5, v: 6 }, { id: "a", label: "비틀림 각도", min: 32, max: 52, step: 1, v: 40 }],
+    build: p => rectCP(100, 100, twistLines(3, p.s, p.L, p.a, 100, 100))
+  },
+  {
+    id: "hypar", name: "하이퍼볼릭 파라볼로이드", en: "Hypar", lvl: "고급",
+    desc: "동심 정사각형을 산·골 번갈아 접고 대각선을 마디마다 바꿔 접으면, 종이가 스스로 말안장 모양으로 휘어요. 바우하우스 수업에서 나온 고전 과제예요.",
+    use: "칼라, 페플럼, 모자처럼 몸에서 떠 있는 입체 형태. 여러 개를 이어 붙이면 조형적인 실루엣이 돼요.",
+    tip: "정사각형 링을 모두 접은 뒤 바깥에서 안쪽으로 한꺼번에 모으면 마지막에 X자로 접히며 휘어요. 면이 살짝 휘어야 접히는 패턴이에요.",
+    params: [{ id: "n", label: "링 수", min: 4, max: 16, step: 1, v: 8 }],
+    build: p => {
+      const W = 100, c = 50, lines = [], ring = k => (k % 2 ? "M" : "V");
+      for (let k = 1; k < p.n; k++) {
+        const h = 50 * k / p.n;
+        lines.push({ a: [c - h, c - h], b: [c + h, c - h], t: ring(k) }, { a: [c + h, c - h], b: [c + h, c + h], t: ring(k) },
+                   { a: [c + h, c + h], b: [c - h, c + h], t: ring(k) }, { a: [c - h, c + h], b: [c - h, c - h], t: ring(k) });
+      }
+      for (let k = 0; k < p.n; k++) {
+        const h0 = 50 * k / p.n, h1 = 50 * (k + 1) / p.n, t = k === 0 ? ring(0) : ring(k);
+        for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) lines.push({ a: [c + sx * h0, c + sy * h0], b: [c + sx * h1, c + sy * h1], t });
+      }
+      return { w: W, h: W, paper: `M0 0H${W}V${W}H0Z`, lines };
+    }
+  },
+  {
+    id: "circle", name: "원형 곡선 플리츠", en: "Concentric circles", lvl: "고급",
+    desc: "동심원만 산·골 번갈아 접는데, 다 접고 나면 평면을 유지하지 못하고 말안장처럼 휘어져요. 곡선 접기의 대표 예제예요.",
+    use: "곡선 주름이 만드는 볼륨으로 소매산, 러플, 꽃 장식을 만들 수 있어요.",
+    tip: "가운데 원은 오려내야 접혀요. 곡선은 볼펜 끝이나 본폴더로 선을 눌러 긁은 뒤 접어요.",
+    params: [{ id: "n", label: "링 수", min: 6, max: 24, step: 1, v: 12 }, { id: "h", label: "가운데 구멍", min: 4, max: 20, step: 1, v: 9 }],
+    build: p => {
+      const c = 50, R = 49, lines = [];
+      for (let k = 1; k < p.n; k++) lines.push({ circle: [c, c, p.h + (R - p.h) * k / p.n], t: k % 2 ? "M" : "V" });
+      const circ = r => `M${c - r} ${c}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
+      return { w: 100, h: 100, paper: circ(R) + circ(p.h), lines };
+    }
+  },
+  {
+    id: "arc", name: "곡선 아코디언", en: "Curved-crease pleat", lvl: "고급",
+    desc: "아코디언 플리츠를 같은 중심의 호로 바꾼 패턴이에요. 접으면 면 전체가 둥글게 말리면서 단단한 곡면이 돼요.",
+    use: "직선 플리츠보다 몸의 곡선을 잘 따라가요. 허리 벨트, 코르셋 패널, 어깨 라인에 써 보세요.",
+    tip: "곡률이 클수록 더 많이 말려요. 처음에는 곡률을 작게 해서 연습해요.",
+    params: [{ id: "n", label: "칸 수", min: 6, max: 30, step: 1, v: 14 }, { id: "k", label: "곡률", min: 1, max: 10, step: 1, v: 5 }],
+    build: p => {
+      const W = 100, H = 66, cy = -(220 - p.k * 18), lines = [];
+      const r0 = Math.hypot(50, cy), r1 = H - cy, step = (r1 - r0 + 4) / p.n;
+      for (let k = 1; k < p.n; k++) lines.push({ circle: [50, cy, r0 - 2 + step * k], t: k % 2 ? "M" : "V" });
+      return { w: W, h: H, paper: `M0 0H${W}V${H}H0Z`, lines };
+    }
+  }
+];
+advanced.forEach(p => addCard(p, document.getElementById("grid2")));
 
 // Miura card (wide, with 3D)
 (() => {
