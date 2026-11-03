@@ -534,6 +534,10 @@ for lp, lab in ((LF, ['8  앞 안감', '안감 x1 (겉면 위로)', '밑단 2.5c
                 (L9_2, ['9-2  뒤 안감 오른쪽', '안감 x1', '밑단 2.5cm 짧음'])):
     lp.update(label=lab, autolabel=True, grain='auto', texts=[])
 LININGS = [LF, L9_1, L9_2]
+import os as _os
+NO_LINING = _os.environ.get('NO_LINING') == '1'
+if NO_LINING:
+    for _lp in LININGS: pieces.remove(_lp)
 
 # ---- matching notches for the toile: side-seam waist, lining armhole / zipper, drape shoulder point
 _WB = (20.5, 39.0)
