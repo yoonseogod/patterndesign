@@ -1,0 +1,647 @@
+<title>스레드 드레스 3D 피팅</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@1,6..96,500&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D fitting stage on a cutting-mat grid; a pattern-tag control sheet floats right (desktop) / bottom (phone). */
+:root {
+  --mat: #e6e9e3;        /* cutting mat */
+  --mat-line: #d3d8cf;
+  --sheet: #f7f8f4;      /* pattern tag paper */
+  --ink: #1f2522;
+  --muted: #5d665f;
+  --thread: #b3361f;     /* red zigzag thread */
+  --olive: #5f6431;      /* knit sleeve */
+  --line: #c9cfc5;
+  --display: "Bodoni Moda", "Didot", "Times New Roman", serif;
+  --body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --mat: #191c1a; --mat-line: #242925; --sheet: #202421; --ink: #e4e7e1; --muted: #9aa39b;
+    --thread: #e0644a; --olive: #a3a860; --line: #343a35; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --mat: #191c1a; --mat-line: #242925; --sheet: #202421; --ink: #e4e7e1; --muted: #9aa39b;
+  --thread: #e0644a; --olive: #a3a860; --line: #343a35; color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--mat); color: var(--ink); font-family: var(--body); overflow: hidden;
+  background-image:
+    linear-gradient(var(--mat-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--mat-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+#app { position: relative; height: 100%; }
+#stage { position: absolute; inset: 0; }
+#stage canvas { display: block; touch-action: none; }
+.brand {
+  position: absolute; top: 14px; left: max(16px, env(safe-area-inset-left, 0px)); z-index: 2; pointer-events: none;
+  display: grid; gap: 2px;
+}
+.brand h1 { margin: 0; font-family: var(--display); font-style: italic; font-weight: 500; font-size: clamp(22px, 3.2vw, 34px); letter-spacing: .01em; line-height: 1.05; text-wrap: balance; }
+.brand p { margin: 0; font-size: 12px; color: var(--muted); letter-spacing: .02em; }
+.size-tag { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+
+.sheet {
+  position: absolute; z-index: 3; background: var(--sheet); border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(0,0,0,.10);
+  top: 14px; right: max(16px, env(safe-area-inset-right, 0px)); width: 300px; max-height: calc(100% - 28px);
+  overflow: auto; border-radius: 4px; padding: 16px 16px 14px;
+  display: grid; gap: 14px;
+}
+.sheet::before { /* punched tag hole */
+  content: ""; position: absolute; top: 10px; left: 50%; width: 10px; height: 10px; margin-left: -5px;
+  border-radius: 50%; border: 1px solid var(--line); background: var(--mat);
+}
+.sec { display: grid; gap: 8px; }
+.sec h2 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; }
+button.pill, label.pill {
+  font: 500 13px/1 var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line);
+  padding: 8px 11px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+button.pill[aria-pressed="true"], label.pill:has(input:checked) { border-color: var(--ink); background: var(--ink); color: var(--sheet); }
+button.pill:focus-visible, label.pill:focus-within, input[type=range]:focus-visible { outline: 2px solid var(--thread); outline-offset: 2px; }
+label.pill input { position: absolute; opacity: 0; pointer-events: none; }
+.slider { display: grid; gap: 6px; }
+.slider .ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--thread); }
+.chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.chip {
+  font: 500 12px/1.2 var(--body); text-align: left; color: var(--ink); background: transparent; cursor: pointer;
+  border: 1px dashed var(--line); border-radius: 3px; padding: 7px 8px; display: grid; gap: 2px; min-width: 0;
+}
+.chip b { font-family: var(--mono); font-weight: 500; font-size: 12px; }
+.chip span { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip[aria-pressed="true"] { border-style: solid; border-color: var(--thread); color: var(--thread); }
+.chip:focus-visible { outline: 2px solid var(--thread); outline-offset: 1px; }
+.info { font-size: 12.5px; line-height: 1.55; color: var(--muted); min-height: 3.1em; }
+.info strong { color: var(--ink); font-weight: 600; }
+.zig { height: 6px; background:
+  linear-gradient(135deg, transparent 33%, var(--thread) 33% 45%, transparent 45%) 0 0/8px 6px,
+  linear-gradient(45deg, transparent 33%, var(--thread) 33% 45%, transparent 45%) 0 0/8px 6px; opacity: .8; }
+.hint { position: absolute; z-index: 2; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); font-size: 12px; color: var(--muted); pointer-events: none; }
+#toggleSheet { display: none; }
+#loading { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--mono); font-size: 12px; color: var(--muted); z-index: 1; }
+@media (max-width: 720px) {
+  .sheet { top: auto; left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 46%; gap: 12px; }
+  .sheet.collapsed { max-height: 58px; overflow: hidden; }
+  #toggleSheet { display: inline-flex; position: absolute; right: 12px; top: 12px; }
+  .hint { display: none; }
+  .chips { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div id="app">
+  <div id="stage" aria-label="마네킹에 입힌 드레스 3D 뷰"></div>
+  <div id="loading">마네킹에 패턴을 입히는 중…</div>
+  <header class="brand">
+    <h1>Quilted Thread Dress</h1>
+    <p>비대칭 퀼팅 스레드 드레스 · 실제 패턴 조각으로 입힌 3D 피팅</p>
+    <span class="size-tag">SIZE 55 · B84 W66 H92 · 165cm</span>
+  </header>
+
+  <aside class="sheet" id="sheet">
+    <button class="pill" id="toggleSheet" aria-expanded="true">접기</button>
+    <div class="sec">
+      <h2>재단 → 봉제 → 착용</h2>
+      <div class="slider">
+        <input type="range" id="sew" min="0" max="1000" value="1000" aria-label="재단에서 착용까지 진행">
+        <div class="ends"><span>평면 패턴</span><span id="sewPct">착용 100%</span></div>
+      </div>
+      <div class="row"><button class="pill" id="play">▶ 입히기 재생</button></div>
+    </div>
+    <div class="zig" aria-hidden="true"></div>
+    <div class="sec">
+      <h2>보기</h2>
+      <div class="row" role="group" aria-label="카메라 방향">
+        <button class="pill" data-view="front" aria-pressed="true">앞</button>
+        <button class="pill" data-view="side" aria-pressed="false">옆</button>
+        <button class="pill" data-view="back" aria-pressed="false">뒤</button>
+        <button class="pill" data-view="detail" aria-pressed="false">디테일</button>
+        <button class="pill" id="spin" aria-pressed="false">자동 회전</button>
+      </div>
+    </div>
+    <div class="sec">
+      <h2>레이어</h2>
+      <div class="row">
+        <label class="pill"><input type="checkbox" id="lyYarn" checked>실 장식</label>
+        <label class="pill"><input type="checkbox" id="lyDrape" checked>체크 드레이프</label>
+        <label class="pill"><input type="checkbox" id="lyStitch" checked>지그재그 · 아플리케</label>
+        <label class="pill"><input type="checkbox" id="lyBody" checked>마네킹</label>
+      </div>
+    </div>
+    <div class="sec">
+      <h2>패턴 조각</h2>
+      <div class="chips" id="chips"></div>
+      <div class="info" id="info">조각을 누르거나 3D 옷을 탭하면 해당 패널이 표시됩니다.</div>
+    </div>
+  </aside>
+  <div class="hint">드래그 회전 · 스크롤/핀치 확대 · 우클릭 이동</div>
+</div>
+
+<script>const PATTERN=/*PATTERN_JSON*/null;</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+const P = PATTERN;
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function interp(table, x) {               // piecewise linear over [[x, y], ...]
+  if (table.length === 1) return table[0][1];
+  if (x <= table[0][0]) { const [a, b] = table; return a[1] + (x - a[0]) * (b[1] - a[1]) / (b[0] - a[0]); }
+  for (let i = 1; i < table.length; i++) if (x <= table[i][0]) {
+    const a = table[i - 1], b = table[i]; return a[1] + (x - a[0]) * (b[1] - a[1]) / (b[0] - a[0]);
+  }
+  const a = table[table.length - 2], b = table[table.length - 1];
+  return b[1] + (x - b[0]) * (b[1] - a[1]) / (b[0] - a[0]);
+}
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+/* ======================= MANNEQUIN (size 55, cm) ======================= */
+// [height, half-width, front depth, back depth]
+const SECT = [[70,15.4,8.4,10],[74,16.6,8.8,10.8],[81,17.4,9,11.4],[88,16.2,8.7,10.4],[94,13.6,8.3,8.5],[99,12.4,8.1,7.7],
+  [105,13,8.5,7.9],[110,14.4,10,8.5],[114,14.9,10.6,8.9],[119,15.5,9.4,9.3],[125,16.4,8.4,8.8],[129,17.4,7.4,7.8],
+  [131.5,16.6,6.4,6.8],[134,11.5,5.8,6.2],[136,7.6,5.5,5.7],[137.6,6,5.3,5.3]];
+const H = { snp: 137, ua: 116, waist: 99, hip: 81 };
+let K = [[0, 1]];                           // circumference calibration factor by height
+function rawSection(h, n = 96) {
+  const s = clamp(h, 70, 137.6);
+  const col = j => interp(SECT.map(r => [r[0], r[j]]), s);
+  const k = interp(K, s);
+  const w = col(1) * k, df = col(2) * k, db = col(3) * k, e = 2 / 2.35;
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / n * Math.PI * 2, sn = Math.sin(t), cs = Math.cos(t);
+    let x = w * Math.sign(sn) * Math.abs(sn) ** e;
+    let z = (cs > 0 ? df : db) * Math.sign(cs) * Math.abs(cs) ** e;
+    if (cs > 0) z += 2.3 * k * Math.exp(-(((s - 112) / 6.5) ** 2)) * (Math.exp(-(((x - 8.6) / 5.2) ** 2)) + Math.exp(-(((x + 8.6) / 5.2) ** 2))) * cs;
+    else z -= 1.8 * k * Math.exp(-(((s - 80) / 8) ** 2)) * (Math.exp(-(((x - 7) / 6) ** 2)) + Math.exp(-(((x + 7) / 6) ** 2))) * -cs;
+    pts.push([x, z]);
+  }
+  return pts;
+}
+function hull(pts) {                       // convex hull (garments bridge hollows)
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.reverse()) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+const perim = pts => pts.reduce((s, p, i) => { const q = pts[(i + 1) % pts.length]; return s + Math.hypot(q[0] - p[0], q[1] - p[1]); }, 0);
+// calibrate bust / waist / hip girths to the size table
+(() => {
+  const target = [[81, P.ref.meas.H], [99, P.ref.meas.W], [114, P.ref.meas.B]];
+  const f = target.map(([h, g]) => [h, g / perim(hull(rawSection(h, 192)))]);
+  K = [[60, f[0][1]], ...f, [140, f[2][1] * 0.97]];
+})();
+
+function bodyMesh(mat) {
+  const group = new THREE.Group();
+  // torso
+  const n = 96, h0 = 70, h1 = 137.6, rows = 92, pos = [], idx = [];
+  for (let r = 0; r <= rows; r++) {
+    const h = lerp(h0, h1, r / rows), sec = rawSection(h, n);
+    for (let i = 0; i <= n; i++) { const [x, z] = sec[i % n]; pos.push(x, h, z); }
+  }
+  for (let r = 0; r < rows; r++) for (let i = 0; i < n; i++) {
+    const a = r * (n + 1) + i, b = a + n + 1; idx.push(a, a + 1, b, a + 1, b + 1, b);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  group.add(new THREE.Mesh(g, mat));
+  const cap = new THREE.Mesh(new THREE.CircleGeometry(14, 32), mat); cap.rotation.x = Math.PI / 2; cap.scale.set(1.15, .7, 1); cap.position.y = 70.2; group.add(cap);
+  // neck + head
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(5.0, 5.5, 12, 32, 1, true), mat); neck.position.set(0, 142, -0.4); group.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), mat); head.scale.set(8, 11, 9.3); head.position.set(0, 156, 0.6); group.add(head);
+  // limbs
+  for (const sx of [1, -1]) {
+    group.add(limb([V(16.6 * sx, 128.6, -0.6), V(21.6 * sx, 101, 0.4), V(25.2 * sx, 77, 3)], t => lerp(4.7, 2.7, t) + 0.5 * Math.sin(Math.PI * t * 0.5) * (1 - t), mat));
+    const sh = new THREE.Mesh(new THREE.SphereGeometry(5.3, 24, 16), mat); sh.position.set(16.2 * sx, 128.4, -0.5); group.add(sh);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), mat); hand.scale.set(2.3, 6.2, 1.4); hand.position.set(26.2 * sx, 71.5, 3.6); hand.rotation.z = -0.12 * sx; group.add(hand);
+    group.add(limb([V(8.6 * sx, 76, 0.4), V(7.6 * sx, 46, 1.2), V(6.6 * sx, 8, 0)], t => lerp(8.4, 3.2, t ** 0.8), mat));
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), mat); foot.scale.set(3.6, 2.6, 10.5); foot.position.set(6.6 * sx, 3.2, 5.5); group.add(foot);
+  }
+  return group;
+}
+function tubeGeo(points, radiusFn, radial = 20, segs = 64) {
+  const curve = new THREE.CatmullRomCurve3(points), frames = curve.computeFrenetFrames(segs, false);
+  const pos = [], col = [], idx = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs, c = curve.getPointAt(t), r = radiusFn(t), N = frames.normals[i], B = frames.binormals[i];
+    for (let j = 0; j <= radial; j++) {
+      const a = j / radial * Math.PI * 2;
+      pos.push(c.x + r * (Math.cos(a) * N.x + Math.sin(a) * B.x), c.y + r * (Math.cos(a) * N.y + Math.sin(a) * B.y), c.z + r * (Math.cos(a) * N.z + Math.sin(a) * B.z));
+    }
+  }
+  for (let i = 0; i < segs; i++) for (let j = 0; j < radial; j++) {
+    const a = i * (radial + 1) + j, b = a + radial + 1; idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+const limb = (pts, rf, mat) => new THREE.Mesh(tubeGeo(pts, rf, 24, 60), mat);
+
+/* ======================= PATTERN → BODY MAPPING ======================= */
+const yToH = y => interp([[0, H.snp], [21, H.ua], [42, H.waist], [60, H.hip], [100, H.hip - 40]], y);
+const backY = y => interp(P.ref.back_y, y);
+const sideF = y => interp(P.ref.front_side, y), sideB = y => interp(P.ref.back_side, y);
+const secCache = new Map();
+function garmentSection(h, yf, yb) {
+  const key = Math.round(h * 4);
+  if (secCache.has(key)) return secCache.get(key);
+  const hb = Math.max(h, H.hip);                       // below the hip the dress hangs from the hip shape
+  let pts = hull(rawSection(hb, 160));
+  const pb = perim(pts);
+  const want = 2 * sideF(yf) + 2 * sideB(yb);
+  let s = 1 + 0.9 / Math.max(10, pb / (2 * Math.PI));   // ~0.9cm off the body (quilt thickness)
+  if (yf > 21) s = Math.max(s, lerp(s, want / pb, clamp((yf - 21) / 8, 0, 1)));
+  pts = pts.map(([x, z]) => [x * s, z * s]);
+  // order by polar angle from front centre (+z) toward wearer's left (+x)
+  pts = pts.map(p => [p[0], p[1], (Math.atan2(p[0], p[1]) + 2 * Math.PI) % (2 * Math.PI)]).sort((a, b) => a[2] - b[2]);
+  const cum = [0]; for (let i = 1; i <= pts.length; i++) { const a = pts[i - 1], b = pts[i % pts.length]; cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  const L = cum[cum.length - 1];
+  const at = d => { d = ((d % L) + L) % L; let i = 1; while (cum[i] < d) i++; const t = (d - cum[i - 1]) / (cum[i] - cum[i - 1]); const a = pts[i - 1], b = pts[i % pts.length]; return [lerp(a[0], b[0], t), lerp(a[1], b[1], t)]; };
+  let iL = 0, iR = 0; pts.forEach((p, i) => { if (p[0] > pts[iL][0]) iL = i; if (p[0] < pts[iR][0]) iR = i; });
+  let iB = 0, best = 1e9; pts.forEach((p, i) => { if (p[1] < 0 && Math.abs(p[0]) < best) { best = Math.abs(p[0]); iB = i; } });
+  const sec = { at, L, dL: cum[iL], dB: cum[iB], dR: cum[iR] };
+  secCache.set(key, sec); return sec;
+}
+function mapFront(x, y, lift = 0) {
+  const h = yToH(y), sec = garmentSection(h, y, y), sf = sideF(y);
+  const d = x >= 0 ? x / sf * sec.dL : sec.L - (-x / sf) * (sec.L - sec.dR);
+  const [px, pz] = sec.at(d);
+  const r = Math.hypot(px, pz) || 1;
+  return V(px * (1 + lift / r), h, pz * (1 + lift / r));
+}
+function mapBack(x, y, lift = 0) {
+  const yf = backY(y), h = yToH(yf), sec = garmentSection(h, yf, y), sb = sideB(y);
+  const d = x >= 0 ? sec.dB - x / sb * (sec.dB - sec.dL) : sec.dB + (-x / sb) * (sec.dR - sec.dB);
+  const [px, pz] = sec.at(d);
+  const r = Math.hypot(px, pz) || 1;
+  return V(px * (1 + lift / r), h, pz * (1 + lift / r));
+}
+// left sleeve along the left arm
+const ARM = [V(15.9, 132.6, -0.7), V(16.6, 128.6, -0.6), V(21.6, 101, 0.4), V(25.2, 77, 3), V(26.0, 70.5, 3.6)];
+const armCurve = new THREE.CatmullRomCurve3(ARM), armLen = armCurve.getLength();
+const sleeveOutline = P.pieces.find(p => p.id === '5').outline;
+function widthAt(outline, y) {
+  let lo = 1e9, hi = -1e9;
+  for (let i = 0; i < outline.length - 1; i++) {
+    const [x1, y1] = outline[i], [x2, y2] = outline[i + 1];
+    if ((y1 - y) * (y2 - y) <= 0 && y1 !== y2) { const x = x1 + (y - y1) * (x2 - x1) / (y2 - y1); lo = Math.min(lo, x); hi = Math.max(hi, x); }
+  }
+  return hi > lo ? [lo, hi] : [-1, 1];
+}
+function mapSleeve(x, y, lift = 0) {
+  const cap = P.ref.sleeve.cap, u = clamp(y / P.ref.sleeve.length, 0, 1);
+  const c = armCurve.getPointAt(u * 0.995), T = armCurve.getTangentAt(u * 0.995);
+  let O = V(1, 0.15, 0).addScaledVector(T, -V(1, 0.15, 0).dot(T)).normalize();
+  let F = new THREE.Vector3().crossVectors(T, O).normalize(); if (F.z < 0) F.negate();
+  const [lo, hi] = widthAt(sleeveOutline, clamp(y, 0.2, P.ref.sleeve.length - 0.2));
+  const w = hi - lo, armR = lerp(4.9, 2.9, u);
+  let r = Math.max(armR + 0.7, w / (2 * Math.PI));
+  if (y < cap) r *= Math.sqrt(Math.sin(Math.PI / 2 * clamp(y / cap, 0.04, 1)));
+  const phi = Math.PI * clamp(x / (w / 2), -1, 1);
+  return c.clone().addScaledVector(O, (r + lift) * Math.cos(phi)).addScaledVector(F, (r + lift) * Math.sin(phi));
+}
+const mapper = { front: mapFront, back: mapBack, sleeve: mapSleeve };
+
+/* ======================= FABRIC TEXTURES (canvas) ======================= */
+function canvasTex(w, h, draw, repeat) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
+  return t;
+}
+const PX = 12;  // pixels per cm on panel textures
+function quiltCanvas(frame, bump) {
+  const [x0, y0, x1, y1] = frame === 'front' ? [-26, -2, 27, 93] : [-26, -2, 26, 88];
+  const W = Math.round((x1 - x0) * PX), Hh = Math.round((y1 - y0) * PX);
+  return { x0, y0, W: (x1 - x0), Hc: (y1 - y0), tex: canvasTex(W, Hh, (g) => {
+    g.fillStyle = bump ? '#9a9a9a' : '#ece6d8'; g.fillRect(0, 0, W, Hh);
+    const d = 6 * PX;                       // 6cm diamond quilting
+    for (let i = -Hh; i < W + Hh; i += d) for (let j = 0; j < Hh + d; j += d) {
+      const cx = i + j % (2 * d) / 2, cy = j;
+      const gr = g.createRadialGradient(cx, cy, 2, cx, cy, d * 0.62);
+      if (bump) { gr.addColorStop(0, '#ffffff'); gr.addColorStop(1, '#808080'); }
+      else { gr.addColorStop(0, 'rgba(255,253,246,.55)'); gr.addColorStop(1, 'rgba(160,150,128,.0)'); }
+      g.fillStyle = gr; g.beginPath(); g.moveTo(cx, cy - d / 2); g.lineTo(cx + d / 2, cy); g.lineTo(cx, cy + d / 2); g.lineTo(cx - d / 2, cy); g.closePath(); g.fill();
+    }
+    g.strokeStyle = bump ? '#303030' : 'rgba(120,108,88,.55)'; g.lineWidth = bump ? 3 : 1.2; g.setLineDash(bump ? [] : [5, 3]);
+    for (let k = -Hh; k < W + Hh; k += d / 2 * 2) {
+      g.beginPath(); g.moveTo(k, 0); g.lineTo(k + Hh, Hh); g.stroke();
+      g.beginPath(); g.moveTo(k, 0); g.lineTo(k - Hh, Hh); g.stroke();
+    }
+    g.setLineDash([]);
+    if (!bump) {
+      for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(90,80,60,${rnd() * 0.05})`; g.fillRect(rnd() * W, rnd() * Hh, 1.5, 1.5); }
+      if (frame === 'front') {            // handwritten script like the design
+        g.strokeStyle = 'rgba(25,22,20,.82)'; g.lineWidth = 1.6; g.lineCap = 'round';
+        for (let line = 0; line < 26; line++) {
+          let x = (-6 + rnd() * 14 - x0) * PX, y = (34 + line * 1.8 + rnd() - y0) * PX;
+          const len = (8 + rnd() * 10) * PX; const end = x + len;
+          g.beginPath(); g.moveTo(x, y);
+          while (x < end) {
+            const step = 4 + rnd() * 9;
+            g.bezierCurveTo(x + step * .3, y - 9 - rnd() * 8, x + step * .7, y + 4 + rnd() * 5, x + step, y + (rnd() - .5) * 3);
+            x += step; if (rnd() < .12) { x += 6; g.moveTo(x, y); }
+          }
+          g.stroke();
+        }
+      }
+    }
+  }) };
+}
+const qFront = quiltCanvas('front', false), qFrontB = quiltCanvas('front', true);
+const qBack = quiltCanvas('back', false), qBackB = quiltCanvas('back', true);
+const knitTex = canvasTex(128, 128, (g, w, h) => {
+  g.fillStyle = '#4c5128'; g.fillRect(0, 0, w, h);
+  for (let x = 0; x < w; x += 16) for (let y = 0; y < h; y += 12) {
+    g.strokeStyle = '#69703a'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(x + 2, y); g.lineTo(x + 8, y + 10); g.lineTo(x + 14, y); g.stroke();
+    g.strokeStyle = 'rgba(30,32,14,.6)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x + 8, y + 10); g.lineTo(x + 8, y + 12); g.stroke();
+  }
+  for (let i = 0; i < 1500; i++) { g.fillStyle = `rgba(${rnd() < .5 ? '120,128,70' : '40,42,20'},.25)`; g.fillRect(rnd() * w, rnd() * h, 1, 1); }
+}, true); knitTex.repeat.set(1, 1);
+const plaidTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#23372c'; g.fillRect(0, 0, w, h);
+  const band = (p, sz, c, a) => { g.fillStyle = c; g.globalAlpha = a; g.fillRect(p, 0, sz, h); g.fillRect(0, p, w, sz); g.globalAlpha = 1; };
+  band(20, 60, '#16241d', .8); band(150, 60, '#16241d', .8); band(96, 34, '#2c4a5c', .55);
+  band(112, 3, '#b8452c', .9); band(8, 2, '#c99a3a', .8); band(230, 2, '#c99a3a', .8); band(0, 256, '#000', 0);
+  for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(255,255,255,${rnd() * .05})`; g.fillRect(rnd() * w, rnd() * h, 2, 1); }
+}, true);
+
+/* ======================= SCENE ======================= */
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(28, 1, 5, 3000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.minDistance = 60; controls.maxDistance = 900; controls.maxPolarAngle = Math.PI * 0.53;
+controls.target.set(0, 92, 0);
+
+scene.add(new THREE.HemisphereLight(0xf4f2ec, 0x6f6a60, 1.25));
+const key = new THREE.DirectionalLight(0xfff6ea, 2.3); key.position.set(160, 330, 260); key.castShadow = true;
+key.shadow.mapSize.set(1536, 1536); Object.assign(key.shadow.camera, { left: -120, right: 120, top: 200, bottom: -20, near: 50, far: 900 }); key.shadow.bias = -0.0006;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xdfe8ff, 0.9); rim.position.set(-260, 200, -220); scene.add(rim);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(160, 64), new THREE.ShadowMaterial({ opacity: 0.18 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const plinth = new THREE.Mesh(new THREE.CylinderGeometry(34, 36, 3, 64), new THREE.MeshStandardMaterial({ color: 0xcfcac0, roughness: .8 }));
+plinth.position.y = -1.4; plinth.receiveShadow = true; scene.add(plinth);
+
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe7e3dc, roughness: 0.62, metalness: 0.0 });
+const body = bodyMesh(bodyMat); body.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); scene.add(body);
+
+/* ---------- garment pieces (morph: flat pattern → worn) ---------- */
+const FLAT_OFFSET = { front: [-62, 0], back: [0, 0], sleeve: [62, 0] };
+const fabricMat = {};
+function matFor(p) {
+  const k = p.fabric + p.frame; if (fabricMat[k]) return fabricMat[k].clone();
+  let m;
+  if (p.fabric === 'quilt') { const q = p.frame === 'front' ? [qFront, qFrontB] : [qBack, qBackB]; m = new THREE.MeshStandardMaterial({ map: q[0].tex, bumpMap: q[1].tex, bumpScale: 2.2, roughness: 0.92, side: THREE.DoubleSide }); }
+  else if (p.fabric === 'gauze') m = new THREE.MeshStandardMaterial({ color: 0xefe9dc, roughness: 1, transparent: true, opacity: 0.86, side: THREE.DoubleSide });
+  else m = new THREE.MeshStandardMaterial({ map: knitTex, roughness: 0.95, side: THREE.DoubleSide });
+  fabricMat[k] = m; return m.clone();
+}
+const pieceMeshes = [];
+for (const p of P.pieces) {
+  const n = p.v.length, flat = new Float32Array(n * 3), worn = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+  let cx = 0, cy = 0; p.v.forEach(([x, y]) => { cx += x / n; cy += y / n; });
+  const q = p.frame === 'front' ? qFront : qBack;
+  p.v.forEach(([x, y], i) => {
+    const w = mapper[p.frame](x, y);
+    worn.set([w.x, w.y, w.z], i * 3);
+    const [ox] = FLAT_OFFSET[p.frame];
+    const spread = p.frame === 'front' ? 0.09 : 0.05;
+    flat.set([ox + x + (cx) * spread, 150 - y - (cy - 45) * spread * 0.5, 46], i * 3);
+    if (p.fabric === 'quilt') uv.set([(x - q.x0) / q.W, 1 - (y - q.y0) / q.Hc], i * 2);
+    else uv.set([x / 4, -y / 3.2], i * 2);
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(worn.slice(), 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setIndex(p.f); g.computeVertexNormals();
+  const mesh = new THREE.Mesh(g, matFor(p)); mesh.castShadow = true; mesh.receiveShadow = true;
+  mesh.userData = { piece: p, flat, worn, center: [cx, cy] };
+  scene.add(mesh); pieceMeshes.push(mesh);
+}
+
+/* ---------- details: zigzag stitching, appliqué, yarn, plaid drape ---------- */
+const details = new THREE.Group(); scene.add(details);
+const stitchGroup = new THREE.Group(), yarnGroup = new THREE.Group(), drapeGroup = new THREE.Group();
+details.add(stitchGroup, yarnGroup, drapeGroup);
+function resample(pl, step) {
+  const out = [pl[0]];
+  for (let i = 1; i < pl.length; i++) {
+    const a = pl[i - 1], b = pl[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.ceil(d / step);
+    for (let k = 1; k <= n; k++) out.push([lerp(a[0], b[0], k / n), lerp(a[1], b[1], k / n)]);
+  }
+  return out;
+}
+const threadMat = new THREE.MeshStandardMaterial({ color: 0xb8361f, roughness: .7 });
+function zigzag(pl, frame) {
+  const pts = resample(pl, 0.45), out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+    let tx = b[0] - a[0], ty = b[1] - a[1]; const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
+    const o = (i % 2 ? 1 : -1) * 0.38;
+    out.push(mapper[frame](pts[i][0] - ty * o, pts[i][1] + tx * o, 0.35));
+  }
+  return out;
+}
+const stitchGeos = [];
+for (const [frame, lines] of Object.entries(P.seams)) for (const pl of lines) {
+  const pts = zigzag(pl, frame);
+  for (let i = 0; i + 1 < pts.length; i += 1) stitchGeos.push(segGeo(pts[i], pts[i + 1], 0.09));
+}
+function segGeo(a, b, r) {
+  const g = new THREE.CylinderGeometry(r, r, a.distanceTo(b), 4, 1, true);
+  g.translate(0, a.distanceTo(b) / 2, 0); g.rotateX(Math.PI / 2);
+  const m = new THREE.Matrix4().lookAt(a, b, V(0, 1, 0)).setPosition(a); g.applyMatrix4(m); return g;
+}
+stitchGroup.add(new THREE.Mesh(mergeGeometries(stitchGeos), threadMat));
+// appliqué triangles (red wool felt)
+const feltMat = new THREE.MeshStandardMaterial({ color: 0xa8301c, roughness: 1, side: THREE.DoubleSide });
+for (const tri of P.applique) {
+  const [A, B, C] = tri, N = 8, pos = [], idx = []; const vid = {};
+  const pt = (i, j) => { const k = i + ',' + j; if (vid[k] !== undefined) return vid[k];
+    const u = i / N, v = j / N, w = 1 - u - v; const x = A[0] * w + B[0] * u + C[0] * v, y = A[1] * w + B[1] * u + C[1] * v;
+    const p = mapFront(x, y, 0.45); pos.push(p.x, p.y, p.z); return (vid[k] = pos.length / 3 - 1); };
+  for (let i = 0; i < N; i++) for (let j = 0; j < N - i; j++) {
+    idx.push(pt(i, j), pt(i + 1, j), pt(i, j + 1));
+    if (i + j < N - 1) idx.push(pt(i + 1, j), pt(i + 1, j + 1), pt(i, j + 1));
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, feltMat); m.castShadow = true; stitchGroup.add(m);
+}
+// yarn: couched mesh over panel B + strands falling to the floor
+const YARN = [0xb3361f, 0xc8502a, 0xd9792f, 0xc79a34, 0xe7c35a, 0xe9e2cf, 0x8a2a1c];
+const Bout = P.ref.B_outline;
+function insideB(x, y) { let c = false; for (let i = 0, j = Bout.length - 1; i < Bout.length; j = i++) { const [xi, yi] = Bout[i], [xj, yj] = Bout[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; }
+const yarnGeos = [];
+function yarnTube(pts, r, color) {
+  const g = tubeGeo(pts, () => r, 3, Math.max(8, pts.length * 3)), c = new THREE.Color(color), n = g.attributes.position.count, col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3)); yarnGeos.push(g);
+}
+for (let s = 0; s < 120; s++) {               // net / loops on the surface
+  let x = -8 - rnd() * 16, y = 18 + rnd() * 70; if (!insideB(x, y)) { s--; continue; }
+  const pts = []; let a = rnd() * Math.PI * 2;
+  for (let k = 0; k < 14; k++) {
+    a += (rnd() - .5) * 1.6; x += Math.cos(a) * 1.6; y += Math.sin(a) * 1.6;
+    if (!insideB(x, y)) { x -= Math.cos(a) * 1.6; y -= Math.sin(a) * 1.6; a += Math.PI; }
+    pts.push(mapFront(x, y, 0.6 + rnd() * 1.4));
+  }
+  yarnTube(pts, 0.16 + rnd() * .12, YARN[Math.floor(rnd() * YARN.length)]);
+}
+for (let s = 0; s < 150; s++) {               // long strands hanging to the floor
+  let x = -9 - rnd() * 16, y = 20 + rnd() * 68; if (!insideB(x, y)) { s--; continue; }
+  const p0 = mapFront(x, y, 0.8), out = p0.clone().setY(0).normalize();
+  const pts = [p0]; let p = p0.clone(); const drift = V((rnd() - .5) * .6, 0, (rnd() - .2) * .5);
+  const floorR = 4 + rnd() * 22;
+  while (p.y > 1.5) {
+    p = p.clone().add(V(0, -6 - rnd() * 3, 0)).addScaledVector(out, 0.5 + rnd() * .6).add(drift).add(V((rnd() - .5) * 1.2, 0, (rnd() - .5) * 1.2));
+    if (p.y < 1.5) p.y = 1.0 + rnd() * .8;
+    pts.push(p);
+  }
+  for (let k = 0; k < 3; k++) { p = p.clone().add(V((rnd() - .5) * floorR * .6, 0, (rnd() - .2) * floorR * .5)); p.y = 0.6 + rnd() * 1.4; pts.push(p); }
+  yarnTube(pts, 0.11 + rnd() * .09, YARN[Math.floor(rnd() * YARN.length)]);
+}
+const yarnMesh = new THREE.Mesh(mergeGeometries(yarnGeos), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9 }));
+yarnMesh.castShadow = true; yarnGroup.add(yarnMesh);
+// plaid drape over the left shoulder (bias-cut, gathered at both ends)
+{
+  const path = new THREE.CatmullRomCurve3([V(6.5, 113, 12.5), V(12, 124, 11), V(16.5, 132.5, 6.5), V(18.5, 136.5, 0), V(17.5, 133.5, -6.5), V(13.5, 124, -10.5), V(9, 113, -11.5)]);
+  const NA = 90, NB = 18, pos = [], uv = [], idx = [];
+  for (let i = 0; i <= NA; i++) {
+    const t = i / NA, c = path.getPointAt(t), T = path.getTangentAt(t);
+    const outward = V(c.x - 4, 0, c.z).normalize().add(V(0, 0.6, 0)).normalize();
+    const side = new THREE.Vector3().crossVectors(T, outward).normalize();
+    const width = lerp(7, 22, Math.sin(Math.PI * t) ** 0.8);
+    for (let j = 0; j <= NB; j++) {
+      const v = j / NB - 0.5, fold = Math.sin(v * Math.PI * 5 + t * 3) * (0.9 + 1.2 * Math.sin(Math.PI * t));
+      const p = c.clone().addScaledVector(side, v * width).addScaledVector(outward, fold + 1.2 + 2.2 * (1 - Math.abs(v) * 2) * Math.sin(Math.PI * t));
+      pos.push(p.x, p.y, p.z); uv.push(t * 4, v * 1.6);
+    }
+  }
+  for (let i = 0; i < NA; i++) for (let j = 0; j < NB; j++) { const a = i * (NB + 1) + j, b = a + NB + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+  plaidTex.repeat.set(1, 1); plaidTex.rotation = Math.PI / 4;   // bias
+  const pm = new THREE.MeshStandardMaterial({ map: plaidTex, roughness: .95, side: THREE.DoubleSide });
+  const drape = new THREE.Mesh(g, pm); drape.castShadow = true; drapeGroup.add(drape);
+  const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(3.2, 1.7, 80, 10, 2, 3), pm); knot.position.set(19.2, 129.5, 4.5); knot.rotation.set(0.6, 0.4, 0.2); knot.castShadow = true; drapeGroup.add(knot);
+}
+
+/* ======================= INTERACTION ======================= */
+const ui = id => document.getElementById(id);
+let sewT = 1, playing = false, highlight = null;
+const ease = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+function applySew(t) {
+  sewT = t; const e = ease(t);
+  for (const m of pieceMeshes) {
+    const { flat, worn } = m.userData, pos = m.geometry.attributes.position.array;
+    const lift = Math.sin(Math.PI * e) * 26;                // pieces travel on an arc
+    for (let i = 0; i < pos.length; i += 3) {
+      pos[i] = lerp(flat[i], worn[i], e); pos[i + 1] = lerp(flat[i + 1], worn[i + 1], e) + lift * 0.3; pos[i + 2] = lerp(flat[i + 2], worn[i + 2], e) + lift;
+    }
+    m.geometry.attributes.position.needsUpdate = true; m.geometry.computeVertexNormals();
+  }
+  details.visible = t > 0.985;
+  ui('sewPct').textContent = t >= 0.999 ? '착용 100%' : t <= 0.001 ? '재단 (평면)' : `봉제 ${Math.round(t * 100)}%`;
+  ui('sew').value = Math.round(t * 1000);
+}
+ui('sew').addEventListener('input', e => { playing = false; applySew(e.target.value / 1000); });
+ui('play').addEventListener('click', () => { applySew(0); playing = true; playStart = performance.now(); });
+let playStart = 0;
+const VIEWS = { front: [0, 112, 420], side: [400, 112, 70], back: [0, 112, -420], detail: [70, 112, 120] };
+const TARGETS = { front: [0, 88, 0], side: [0, 88, 0], back: [0, 88, 0], detail: [4, 108, 0] };
+let camAnim = null;
+function goView(v) {
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+  camAnim = { from: camera.position.clone(), to: V(...VIEWS[v]), tf: controls.target.clone(), tt: V(...TARGETS[v]), t0: performance.now() };
+}
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => goView(b.dataset.view)));
+ui('spin').addEventListener('click', e => { controls.autoRotate = !controls.autoRotate; controls.autoRotateSpeed = 1.2; e.currentTarget.setAttribute('aria-pressed', String(controls.autoRotate)); });
+ui('lyYarn').addEventListener('change', e => yarnGroup.visible = e.target.checked);
+ui('lyDrape').addEventListener('change', e => drapeGroup.visible = e.target.checked);
+ui('lyStitch').addEventListener('change', e => stitchGroup.visible = e.target.checked);
+ui('lyBody').addEventListener('change', e => body.visible = e.target.checked);
+ui('toggleSheet').addEventListener('click', e => { const s = ui('sheet'); const c = s.classList.toggle('collapsed'); e.currentTarget.textContent = c ? '펼치기' : '접기'; e.currentTarget.setAttribute('aria-expanded', String(!c)); });
+
+const FABRIC_NAME = { quilt: '아이보리 퀼팅', gauze: '거즈/튤 베이스 + 실 장식', knit: '올리브 울 니트' };
+const chips = ui('chips');
+for (const m of pieceMeshes) {
+  const p = m.userData.piece, b = document.createElement('button');
+  b.className = 'chip'; b.type = 'button'; b.setAttribute('aria-pressed', 'false');
+  b.innerHTML = `<b>${p.id}</b><span>${p.name}</span>`; b.addEventListener('click', () => select(highlight === m ? null : m));
+  m.userData.chip = b; chips.appendChild(b);
+}
+function select(m) {
+  highlight = m;
+  for (const o of pieceMeshes) {
+    o.userData.chip.setAttribute('aria-pressed', String(o === m));
+    o.material.emissive = new THREE.Color(o === m ? 0x8a1d0c : 0x000000);
+    o.material.emissiveIntensity = o === m ? 0.35 : 0;
+    o.material.transparent = true; o.material.opacity = m && o !== m ? 0.35 : (o.userData.piece.fabric === 'gauze' ? 0.86 : 1);
+  }
+  const info = ui('info');
+  if (!m) { info.innerHTML = '조각을 누르거나 3D 옷을 탭하면 해당 패널이 표시됩니다.'; return; }
+  const p = m.userData.piece;
+  const xs = p.outline.map(q => q[0]), ys = p.outline.map(q => q[1]);
+  info.innerHTML = `<strong>${p.id} ${p.name}</strong><br>${FABRIC_NAME[p.fabric]} · 완성 치수 약 ${(Math.max(...xs) - Math.min(...xs)).toFixed(1)} × ${(Math.max(...ys) - Math.min(...ys)).toFixed(1)} cm`;
+}
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let downAt = null;
+renderer.domElement.addEventListener('pointerdown', e => downAt = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObjects(pieceMeshes, false)[0];
+  select(hit ? (highlight === hit.object ? null : hit.object) : null);
+});
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h); camera.aspect = w / h;
+  const narrow = w < 720; camera.setViewOffset(w, h, 0, narrow ? h * 0.2 : 0, w, h);
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize); resize();
+camera.position.set(...VIEWS.front); controls.target.set(...TARGETS.front); controls.update();
+applySew(1);
+ui('loading').hidden = true;
+
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+renderer.setAnimationLoop(now => {
+  if (playing) {
+    const t = clamp((now - playStart) / (reduce ? 1 : 3600), 0, 1); applySew(t); if (t >= 1) playing = false;
+  }
+  if (camAnim) {
+    const t = clamp((now - camAnim.t0) / (reduce ? 1 : 900), 0, 1), e = ease(t);
+    camera.position.lerpVectors(camAnim.from, camAnim.to, e); controls.target.lerpVectors(camAnim.tf, camAnim.tt, e);
+    if (t >= 1) camAnim = null;
+  }
+  controls.update(); renderer.render(scene, camera);
+});
+window.__ready = true;
+</script>
