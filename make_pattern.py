@@ -78,16 +78,23 @@ M = dict(B=84, W=66, H=92, back_len=38, waist_hip=18, sleeve=62, wrist=22)
 # ---------------------------------------------------------------- front (full, x>0 = wearer's LEFT)
 SNP_F = (7.0, 0.0)
 SP_F = (SNP_F[0]+12.5*math.cos(math.radians(22)), 12.5*math.sin(math.radians(22)))
-UA_F = (23.5, 21.0)
-W_F, HIP_F = (21.5, 42.0), (24.5, 60.0)
+# ---- finished girths (body-hugging: only ~quilt thickness of ease) -> half-widths per side seam
+FIT = dict(bust=88.0, waist=69.0, hip=95.0)
+DART_W = 3.5                                   # front & back waist dart intake per half
+FX_UA, BX_UA = FIT['bust']/4 + 0.5, FIT['bust']/4 - 0.5
+FX_W = (FIT['waist']/2 + 2*DART_W)/2 + 0.5; BX_W = FIT['waist']/2 + 2*DART_W - FX_W
+FX_H, BX_H = FIT['hip']/4 + 0.5, FIT['hip']/4 - 0.5
+FX_HEM, BX_HEM = FX_H + 0.5, BX_H + 0.5
+UA_F = (FX_UA, 21.0)
+W_F, HIP_F = (FX_W, 42.0), (FX_H, 60.0)
 BP = (9.0, 26.0)
 def hem_f(x):
     return 87 + (x+25)/19*3 if x <= -6 else 90 - (x+6)/31*11
-HEMSIDE = 25.0
+HEMSIDE = FX_HEM
 
-front_arm = cr([SP_F, (17.3, 10), (17.0, 14), (18.3, 18), (20.5, 20.4), UA_F])
+front_arm = cr([SP_F, (17.3, 10), (17.0, 14), (18.3, 18), (FX_UA - 3.0, 20.4), UA_F])
 front_arm = square_end(front_arm, True, (SNP_F[0]-SP_F[0], SNP_F[1]-SP_F[1]), 3.5)
-TOP_R = (-23.5, 22.5)                 # right side top (one-shoulder edge)
+TOP_R = (-FX_UA, 22.5)                 # right side top (one-shoulder edge)
 neck_f = cr([TOP_R, (-16, 20.2), (-8, 16.6), (0, 11.6), (4.5, 6.0), SNP_F], 30)
 neck_fB, neck_fA = split_at_x(neck_f, -7.5)
 T = neck_fA[0]
@@ -96,7 +103,7 @@ def side_seam(top, w, hip, hem):
     return line(top, w, 12)[:-1] + cr([w, (w[0]+1.1*(1 if w[0]>0 else -1), w[1]+6),
                                          (hip[0]-0.6*(1 if w[0]>0 else -1), hip[1]-6), hip, hem])
 side_L = side_seam(UA_F, W_F, HIP_F, (HEMSIDE, hem_f(HEMSIDE)))
-side_R = side_seam(TOP_R, (-21.5, 42), (-24.5, 60), (-HEMSIDE, hem_f(-HEMSIDE)))
+side_R = side_seam(TOP_R, (-FX_W, 42), (-FX_H, 60), (-HEMSIDE, hem_f(-HEMSIDE)))
 
 HB = (-10.5, hem_f(-10.5))
 BPR = (-9.0, 26.0)
@@ -148,20 +155,21 @@ FB['texts'] = [((-17.5, 50), ['2  앞판 B', '거즈/튤 베이스 x1', '+ 실 �
 # ---------------------------------------------------------------- back
 SNP_B = (7.3, 0.0)
 SP_B = (SNP_B[0]+12.5*math.cos(math.radians(18)), 12.5*math.sin(math.radians(18)))   # = front shoulder (quilting cannot be eased)
-UA_B = (22.5, 21.0)
-back_arm = cr([SP_B, (18.6, 9.5), (18.4, 14), (19.4, 18.2), (20.8, 20.4), UA_B])
+UA_B = (BX_UA, 21.0)
+back_arm = cr([SP_B, (18.6, 9.5), (18.4, 14), (19.4, 18.2), (BX_UA - 1.7, 20.4), UA_B])
 def hem_b(x): return 80 - x/24*4
 CBN = 15.0
 neck_bL = bez((0, CBN), (3.5, CBN), (6.2, 6), SNP_B)
-neck_bR = bez((0, CBN), (-6, CBN), (-17, 22.2), (-22.5, 22.5))
-side_bL = side_seam(UA_B, (20.5, 39), (23.5, 57), (24, hem_b(24)))
+neck_bR = bez((0, CBN), (-6, CBN), (-17, 22.2), (-BX_UA, 22.5))
+side_bL = side_seam(UA_B, (BX_W, 39), (BX_H, 57), (BX_HEM, hem_b(BX_HEM)))
 back_arm = square_end(back_arm, True, (SNP_B[0]-SP_B[0], SNP_B[1]-SP_B[1]), 3.5)
-back_arm = square_end(back_arm, False, sdir(side_bL), 4.0)
-side_bR = side_seam((-22.5, 22.5), (-20.5, 39), (-23.5, 57), (-24, hem_b(-24)))
+back_arm = square_end(back_arm, False, sdir(side_bL), 5.5)
+side_bR = side_seam((-BX_UA, 22.5), (-BX_W, 39), (-BX_H, 57), (-BX_HEM, hem_b(-BX_HEM)))
+neck_bR = square_end(neck_bR, False, sdir(side_bR), 5.0)
 
 BL = piece('3  뒤판 왼쪽', [
     dict(pts=line((0, CBN), (0, hem_b(0))), sa=2, n='cb'),
-    dict(pts=cr([(0, 80), (10, 78.35), (19.5, 76.25), (24, 76)]), sa=2),
+    dict(pts=cr([(0, 80), (10, 78.35), (BX_HEM - 4.5, hem_b(BX_HEM) + 0.25), (BX_HEM, hem_b(BX_HEM))]), sa=2),
     dict(pts=rev(side_bL), sa=1),
     dict(pts=back_arm, sa=1, n='arm'),   # UA? -> no: back_arm SP->UA ; we need UA->SP
     dict(pts=line(SP_B, SNP_B), sa=1),
@@ -177,7 +185,7 @@ BL['quilt'] = True
 BR = piece('4  뒤판 오른쪽', [
     dict(pts=neck_bR, sa=0, n='neck'),
     dict(pts=side_bR, sa=1),
-    dict(pts=cr([(-24, 84), (-19.5, 83.75), (-10, 81.65), (0, 80)]), sa=2),
+    dict(pts=cr([(-BX_HEM, hem_b(-BX_HEM)), (-BX_HEM + 4.5, hem_b(-BX_HEM) - 0.25), (-10, 81.65), (0, 80)]), sa=2),
     dict(pts=line((0, hem_b(0)), (0, CBN)), sa=2, n='cb'),
 ])
 BR['marks'] = [[(-10-1.75, 39.6), (-10, 22), (-10+1.75, 39.6), (-10, 55), (-10-1.75, 39.6)]]
@@ -421,7 +429,7 @@ neck_B_r = rot(neck_fB, BPR, phiR)               # TOP_R' -> T'
 up_B_r = rot(style_up, BPR, phiR)                # BPR -> T'
 TOP_Rr = neck_B_r[0]
 low_B = style_lower(-10.75)                       # HB -> BPR
-side_Rn = side_seam(TOP_Rr, (-21.5, 42), (-24.5, 60), (-HEMSIDE, hem_f(-HEMSIDE)))
+side_Rn = side_seam(TOP_Rr, (-FX_W, 42), (-FX_H, 60), (-HEMSIDE, hem_f(-HEMSIDE)))
 neck_B_r = square_end(neck_B_r, True, sdir(side_Rn), 5.0)
 hem_B = square_end(hem_B, True, sdir(low_B), 4.0)
 FBN = piece('2  앞판 B', [
@@ -540,13 +548,13 @@ if NO_LINING:
     for _lp in LININGS: pieces.remove(_lp)
 
 # ---- matching notches for the toile: side-seam waist, lining armhole / zipper, drape shoulder point
-_WB = (20.5, 39.0)
+_WB = (BX_W, 39.0)
 _side_low = dict((c, p) for c, _, p in FRONT_PANELS)['1-5']
 _side_low['notches'] += [(W_F, 2)]
-FBN['notches'] += [((-21.5, 42.0), 2)]
+FBN['notches'] += [((-FX_W, 42.0), 2)]
 BL['notches'] += [(_WB, 2)]
 BR['notches'] += [((-_WB[0], _WB[1]), 2)]
-LF['notches'] += [(W_F, 2), ((-21.5, 42.0), 2), (at(front_arm, plen(front_arm)-8), 1)]
+LF['notches'] += [(W_F, 2), ((-FX_W, 42.0), 2), (at(front_arm, plen(front_arm)-8), 1)]
 L9_1['notches'] += [(_WB, 2), ((0.0, ZIP_END), 1), (at(back_arm, plen(back_arm)-9), 2)]
 L9_2['notches'] += [((-_WB[0], _WB[1]), 2), ((0.0, ZIP_END), 1)]
 DRP['notches'] += [((36.0, 25.0), 1)]

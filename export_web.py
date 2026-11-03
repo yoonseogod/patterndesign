@@ -103,12 +103,12 @@ applique = [pl(m.tri_at(k, c, a)) for k, c, a in m.FA['applique']]
 
 # reference side-seam x positions per y (front / back frames) and key heights
 ref = dict(
-    front_side=[[0, 23.5], [21, 23.5], [42, 21.5], [60, 24.5], [92, 25.2]],
-    back_side=[[0, 22.5], [21, 22.5], [39.5, 20.5], [57, 23.5], [88, 24.3]],
+    front_side=[[0, m.FX_UA], [21, m.FX_UA], [42, m.FX_W], [60, m.FX_H], [92, m.FX_HEM + 0.2]],
+    back_side=[[0, m.BX_UA], [21, m.BX_UA], [39.5, m.BX_W], [57, m.BX_H], [88, m.BX_HEM + 0.3]],
     front_y=[[0, 0], [21, 21], [42, 42], [60, 60]],     # front frame y at underarm / waist / hip
     back_y=[[0, 0], [21, 21], [39.5, 42], [57, 60]],    # back y -> equivalent front y
     sleeve=dict(cap=m.cap, length=m.SL, wrist=m.M['wrist'], bicep=round(m.bwF+m.bwB, 2), bwF=round(m.bwF, 2), bwB=round(m.bwB, 2)),
-    meas=m.M, B_outline=pl(FB.exterior.coords),
+    meas=m.M, fit=m.FIT, B_outline=pl(FB.exterior.coords),
 )
 data = dict(pieces=pieces, seams=seams, applique=applique, ref=ref)
 
