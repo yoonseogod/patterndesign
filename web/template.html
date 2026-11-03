@@ -1,7 +1,7 @@
 <title>스레드 드레스 3D 피팅</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@1,6..96,500&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@1,6..96,500&family=Homemade+Apple&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: full-bleed 3D fitting stage on a cutting-mat grid; a pattern-tag control sheet floats right (desktop) / bottom (phone). */
 :root {
@@ -84,6 +84,12 @@ input[type=range] { width: 100%; accent-color: var(--thread); }
 .zig { height: 6px; background:
   linear-gradient(135deg, transparent 33%, var(--thread) 33% 45%, transparent 45%) 0 0/8px 6px,
   linear-gradient(45deg, transparent 33%, var(--thread) 33% 45%, transparent 45%) 0 0/8px 6px; opacity: .8; }
+.legend { display: grid; gap: 4px; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.legend .bar { height: 8px; border-radius: 2px; background: linear-gradient(90deg, #c0392b, #e6a23c 45%, #f2e6a0 60%, #5aa49b 80%, #3d6fa8); }
+.legend .ends { display: flex; justify-content: space-between; }
+.tag3d { position: absolute; z-index: 2; pointer-events: none; transform: translate(-50%, -50%); font: 500 11px/1.25 var(--mono);
+  color: var(--ink); background: var(--sheet); border: 1px solid var(--thread); padding: 3px 6px; border-radius: 3px; white-space: nowrap; }
+.tag3d b { color: var(--thread); font-weight: 500; }
 .hint { position: absolute; z-index: 2; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); font-size: 12px; color: var(--muted); pointer-events: none; }
 #toggleSheet { display: none; }
 #loading[hidden] { display: none; }
@@ -135,6 +141,12 @@ input[type=range] { width: 100%; accent-color: var(--thread); }
         <label class="pill"><input type="checkbox" id="lyDrape" checked>체크 드레이프</label>
         <label class="pill"><input type="checkbox" id="lyStitch" checked>지그재그 · 아플리케</label>
         <label class="pill"><input type="checkbox" id="lyBody" checked>마네킹</label>
+        <label class="pill"><input type="checkbox" id="lyRings">치수 링</label>
+        <label class="pill"><input type="checkbox" id="lyHeat">여유분 히트맵</label>
+      </div>
+      <div class="legend" id="legend" hidden>
+        <div class="bar"></div>
+        <div class="ends"><span>0cm 밀착</span><span>2.5</span><span>5cm+ 여유</span></div>
       </div>
     </div>
     <div class="sec">
@@ -352,23 +364,20 @@ function quiltCanvas(frame, bump) {
     if (!bump) {
       for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(90,80,60,${rnd() * 0.05})`; g.fillRect(rnd() * W, rnd() * Hh, 1.5, 1.5); }
       if (frame === 'front') {            // handwritten script like the design
-        g.strokeStyle = 'rgba(25,22,20,.82)'; g.lineWidth = 1.6; g.lineCap = 'round';
-        for (let line = 0; line < 30; line++) {
-          let x = (-7 + rnd() * 16 - x0) * PX, y = (14 + rnd() * 70 - y0) * PX;
-          const len = (4 + rnd() * 9) * PX; const end = x + len;
-          g.beginPath(); g.moveTo(x, y);
-          while (x < end) {
-            const step = 4 + rnd() * 9;
-            const tall = rnd() < .25 ? 20 : 8;
-            g.bezierCurveTo(x + step * .9, y - tall - rnd() * 6, x - step * .2, y - tall * .5, x + step, y + (rnd() - .5) * 2);
-            x += step; if (rnd() < .18) { x += 7 + rnd() * 6; g.moveTo(x, y); }
-          }
-          g.stroke();
+        const NOTES = ['the thread remembers', 'stitch by stitch', 'unravel slowly', 'mend, not hide', 'keep the frayed edge',
+          'warp & weft', 'what holds us together', 'red, then ochre', 'a seam is a promise', 'loose ends stay', 'hand-sewn 14.10'];
+        g.fillStyle = 'rgba(28,24,22,.86)';
+        for (let line = 0; line < 34; line++) {
+          const x = (-8 + rnd() * 15 - x0) * PX, y = (12 + rnd() * 74 - y0) * PX;
+          g.save(); g.translate(x, y); g.rotate((rnd() - .5) * .12);
+          g.font = `${Math.round(PX * (0.9 + rnd() * .5))}px "Homemade Apple", "Segoe Script", "Brush Script MT", cursive`;
+          g.fillText(NOTES[Math.floor(rnd() * NOTES.length)], 0, 0); g.restore();
         }
       }
     }
   }) };
 }
+await Promise.race([document.fonts.load('24px "Homemade Apple"').catch(() => {}), new Promise(r => setTimeout(r, 2500))]);
 const qFront = quiltCanvas('front', false), qFrontB = quiltCanvas('front', true);
 const qBack = quiltCanvas('back', false), qBackB = quiltCanvas('back', true);
 const knitTex = canvasTex(128, 128, (g, w, h) => {
@@ -511,6 +520,12 @@ function yarnTube(pts, r, color) {
   for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
   g.setAttribute('color', new THREE.BufferAttribute(col, 3)); yarnGeos.push(g);
 }
+for (let s = 0; s < 70; s++) {                // dense curly clumps near the top (like the photo)
+  let x = -9 - rnd() * 14, y = 17 + rnd() * 18; if (!insideB(x, y)) { s--; continue; }
+  const pts = []; const r0 = 0.8 + rnd() * 1.6, ph = rnd() * 6.28;
+  for (let k = 0; k < 18; k++) { const a = ph + k * 0.9; pts.push(mapFront(x + Math.cos(a) * r0 + k * .15, y + Math.sin(a) * r0 + k * .25, 1.2 + Math.abs(Math.sin(a * 1.3)) * 2.4)); }
+  yarnTube(pts, 0.17 + rnd() * .1, YARN[Math.floor(rnd() * YARN.length)]);
+}
 for (let s = 0; s < 170; s++) {               // net / loops on the surface
   let x = -8 - rnd() * 16, y = 18 + rnd() * 70; if (!insideB(x, y)) { s--; continue; }
   const pts = []; let a = rnd() * Math.PI * 2;
@@ -599,6 +614,70 @@ ui('lyYarn').addEventListener('change', e => yarnGroup.visible = e.target.checke
 ui('lyDrape').addEventListener('change', e => drapeGroup.visible = e.target.checked);
 ui('lyStitch').addEventListener('change', e => stitchGroup.visible = e.target.checked);
 ui('lyBody').addEventListener('change', e => body.visible = e.target.checked);
+
+/* ---------- fit: ease heatmap (garment-to-body gap) ---------- */
+const bodyPolar = new Map();
+function bodyRadiusAt(h, th) {
+  const k = Math.round(h * 2);
+  if (!bodyPolar.has(k)) bodyPolar.set(k, rawSection(h, 180).map(([x, z]) => [Math.atan2(x, z), Math.hypot(x, z)]));
+  const arr = bodyPolar.get(k); let best = arr[0], bd = 9;
+  for (const q of arr) { const d = Math.abs(Math.atan2(Math.sin(q[0] - th), Math.cos(q[0] - th))); if (d < bd) { bd = d; best = q; } }
+  return best[1];
+}
+const armPts = Array.from({ length: 80 }, (_, i) => armCurve.getPointAt(i / 79));
+function easeAt(p, frame) {
+  if (frame === 'sleeve') {
+    let bi = 0, bd = 1e9; armPts.forEach((a, i) => { const d = a.distanceToSquared(p); if (d < bd) { bd = d; bi = i; } });
+    return Math.sqrt(bd) - lerp(4.9, 2.9, bi / 79);
+  }
+  if (p.y < 72) return 6;                       // hangs free below the hips
+  return Math.hypot(p.x, p.z) - bodyRadiusAt(p.y, Math.atan2(p.x, p.z));
+}
+const heatStops = [[0, [192, 57, 43]], [1.2, [230, 162, 60]], [2.5, [242, 230, 160]], [4, [90, 164, 155]], [6, [61, 111, 168]]];
+function heatColor(e) {
+  e = clamp(e, 0, 6); for (let i = 1; i < heatStops.length; i++) if (e <= heatStops[i][0]) {
+    const [a, ca] = heatStops[i - 1], [b, cb] = heatStops[i], t = (e - a) / (b - a); return ca.map((c, j) => lerp(c, cb[j], t) / 255);
+  } return heatStops[heatStops.length - 1][1].map(c => c / 255);
+}
+const heatMats = new Map();
+for (const m of pieceMeshes) {
+  const w = m.userData.worn, n = w.length / 3, col = new Float32Array(n * 3), v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) { v.fromArray(w, i * 3); col.set(heatColor(easeAt(v, m.userData.piece.frame)), i * 3); }
+  m.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  m.userData.fabricMat = m.material;
+  heatMats.set(m, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85, side: THREE.DoubleSide }));
+}
+ui('lyHeat').addEventListener('change', e => {
+  const on = e.target.checked; ui('legend').hidden = !on;
+  for (const m of pieceMeshes) m.material = on ? heatMats.get(m) : m.userData.fabricMat;
+  select(highlight);
+});
+
+/* ---------- measurement rings (finished garment girth vs body girth) ---------- */
+const ringGroup = new THREE.Group(); ringGroup.visible = false; scene.add(ringGroup);
+const backInv = P.ref.back_y.map(([a, b]) => [b, a]);
+const tags = [];
+for (const [label, yf] of [['가슴', 26], ['허리', 42], ['엉덩이', 60]]) {
+  const h = yToH(yf), sec = garmentSection(h, yf, interp(backInv, yf));
+  const pts = []; for (let i = 0; i <= 120; i++) { const [x, z] = sec.at(sec.L * i / 120); const r = Math.hypot(x, z); pts.push(V(x * (1 + .7 / r), h, z * (1 + .7 / r))); }
+  const geos = []; for (let i = 0; i < pts.length - 1; i += 2) geos.push(segGeo(pts[i], pts[i + 1], 0.22));
+  ringGroup.add(new THREE.Mesh(mergeGeometries(geos), new THREE.MeshBasicMaterial({ color: 0xb3361f })));
+  const bodyG = perim(hull(rawSection(h, 192)));
+  const el = document.createElement('div'); el.className = 'tag3d'; el.hidden = true;
+  el.innerHTML = `${label} <b>${sec.L.toFixed(1)}</b> · 몸 ${bodyG.toFixed(1)}cm`;
+  document.getElementById('app').appendChild(el);
+  const [x, z] = sec.at(sec.dL); tags.push({ el, pos: V(x + 9, h, z) });
+}
+ui('lyRings').addEventListener('change', e => { ringGroup.visible = e.target.checked; tags.forEach(t => t.el.hidden = !e.target.checked); });
+function placeTags() {
+  if (!ringGroup.visible) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  for (const t of tags) {
+    const p = t.pos.clone().project(camera);
+    t.el.style.left = `${(p.x + 1) / 2 * r.width}px`; t.el.style.top = `${(1 - p.y) / 2 * r.height}px`;
+    t.el.style.visibility = p.z < 1 ? 'visible' : 'hidden';
+  }
+}
 ui('toggleSheet').addEventListener('click', e => { const s = ui('sheet'); const c = s.classList.toggle('collapsed'); e.currentTarget.textContent = c ? '펼치기' : '접기'; e.currentTarget.setAttribute('aria-expanded', String(!c)); });
 
 const FABRIC_NAME = { quilt: '아이보리 퀼팅', gauze: '거즈/튤 베이스 + 실 장식', knit: '올리브 울 니트' };
@@ -636,12 +715,13 @@ renderer.domElement.addEventListener('pointerup', e => {
 
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h); camera.aspect = w / h;
-  const narrow = w < 720; camera.setViewOffset(w, h, 0, narrow ? h * 0.2 : 0, w, h);
+  camera.clearViewOffset();
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize); resize();
 camera.position.set(...VIEWS.front); controls.target.set(...TARGETS.front); controls.update();
 applySew(1);
+if (window.innerWidth < 720) ui('toggleSheet').click();   // phones: start with the sheet folded so the whole dress shows
 ui('loading').hidden = true;
 
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -654,7 +734,7 @@ renderer.setAnimationLoop(now => {
     camera.position.lerpVectors(camAnim.from, camAnim.to, e); controls.target.lerpVectors(camAnim.tf, camAnim.tt, e);
     if (t >= 1) camAnim = null;
   }
-  controls.update(); renderer.render(scene, camera);
+  controls.update(); renderer.render(scene, camera); placeTags();
 });
 window.__ready = true;
 </script>
