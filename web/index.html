@@ -96,7 +96,8 @@ input[type=range] { width: 100%; accent-color: var(--thread); }
 #loading { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--mono); font-size: 12px; color: var(--muted); z-index: 1; }
 @media (max-width: 720px) {
   .sheet { top: auto; left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 46%; gap: 12px; }
-  .sheet.collapsed { max-height: 58px; overflow: hidden; }
+  .sheet.collapsed { overflow: hidden; padding-right: 86px; }
+  .sheet.collapsed > :not(.sec-view):not(#toggleSheet) { display: none; }
   #toggleSheet { display: inline-flex; position: absolute; right: 12px; top: 12px; }
   .hint { display: none; }
   .chips { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -124,7 +125,7 @@ input[type=range] { width: 100%; accent-color: var(--thread); }
       <div class="row"><button class="pill" id="play">▶ 입히기 재생</button></div>
     </div>
     <div class="zig" aria-hidden="true"></div>
-    <div class="sec">
+    <div class="sec sec-view">
       <h2>보기</h2>
       <div class="row" role="group" aria-label="카메라 방향">
         <button class="pill" data-view="front" aria-pressed="true">앞</button>
