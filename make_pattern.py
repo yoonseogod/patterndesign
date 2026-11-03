@@ -312,7 +312,7 @@ add_notch(FA, 2, plen(front_arm)-8, 1)          # 8cm above UA
 add_notch(BL, 3, plen(back_arm)-9, 2)
 add_notch(SLV, 0, cap_len - 8.3, 1)              # 8.3 from front bicep
 add_notch(SLV, 0, 9.3, 2)                        # 9.3 from back bicep
-add_notch(SLV, 0, cap_len*(BAH/AH)+0.3, 1)       # shoulder point
+SLV['_sp_pending'] = True                          # shoulder point notch placed after the final armhole is known
 add_notch(BL, 0, ZIP_END-CBN, 1); add_notch(BR, 3, (hem_b(0)-ZIP_END), 1)
 add_notch(FA, 5, plen(style_A)-plen(style_up), 1)   # BP
 add_notch(FB, 1, plen(style_up), 1)
@@ -542,6 +542,9 @@ for lp, lab in ((LF, ['8  앞 안감', '안감 x1 (겉면 위로)', '밑단 2.5c
                 (L9_2, ['9-2  뒤 안감 오른쪽', '안감 x1', '밑단 2.5cm 짧음'])):
     lp.update(label=lab, autolabel=True, grain='auto', texts=[])
 LININGS = [LF, L9_1, L9_2]
+# sleeve shoulder-point notch: split the cap ease equally between front and back
+_ease = plen(SLV['edges'][0]['pts']) - (plen(arm_c) + plen(arm_s_r) + BAH)
+SLV['notches'].append((at(SLV['edges'][0]['pts'], BAH + _ease/2), 1))
 import os as _os
 NO_LINING = _os.environ.get('NO_LINING') == '1'
 if NO_LINING:
