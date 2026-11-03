@@ -185,7 +185,7 @@ function rng(seed) { let s = seed * 9301 + 49297; return () => { s = (s * 9301 +
 // ---------- the eleven pleats ----------
 const pressed = (seq, accordion) => { const s = fitSeq(seq, SHEET.w); return {
   kind: "flat", seq: s, unitSeq: seq,
-  keys: open => { const top = accordion ? 30 : 5;
+  keys: open => { const top = accordion ? Math.min(30, open) : 5;
     return [{ v: 0, ...turtle(s, top) }, { v: pressDepth(), ...turtle(s, top) }, { v: SHEET.h, ...turtle(s, Math.max(top, open)) }]; }
 }; };
 const curtain = pieceSets => {
@@ -198,7 +198,7 @@ const pleats = [
     no: 1, id: "knife", name: "외주름", en: "Knife pleat",
     desc: "모든 주름이 한쪽 방향으로 누워요. 겉으로 보이는 폭과 안으로 접혀 들어가는 깊이 두 가지만 정하면 돼요.",
     use: "교복 스커트, 킬트, 블라우스 앞단. 깊이를 겉폭과 같게 하면 원단이 세 겹이 돼요.",
-    params: [{ id: "w", label: "겉폭", min: 1, max: 8, step: 0.5, v: 2 }, { id: "d", label: "깊이", min: 0.5, max: 6, step: 0.5, v: 1.5 }],
+    params: [{ id: "w", label: "겉폭", min: 0.5, max: 8, step: 0.5, v: 1 }, { id: "d", label: "깊이", min: 0.5, max: 6, step: 0.5, v: 1 }],
     build: p => pressed([{ len: p.w, t: "M" }, { len: p.d, t: "V", h: 1 }, { len: p.d, t: null, h: 1 }]),
     calc: p => ({ unit: p.w + 2 * p.d, finish: p.w })
   },
@@ -206,7 +206,7 @@ const pleats = [
     no: 2, id: "box", name: "박스주름", en: "Box pleat",
     desc: "주름 양쪽이 서로 반대로 접혀 겉에 상자 모양 면이 도드라져요. 상자 사이에는 납작한 바탕이 보여요.",
     use: "A라인 스커트, 셔츠 등판 가운데, 원피스 앞판.",
-    params: [{ id: "b", label: "상자 사이 간격", min: 0, max: 8, step: 0.5, v: 1 }, { id: "w", label: "상자 폭", min: 1.5, max: 10, step: 0.5, v: 3 }, { id: "d", label: "깊이", min: 0.5, max: 4, step: 0.5, v: 1 }],
+    params: [{ id: "b", label: "상자 사이 간격", min: 0, max: 8, step: 0.5, v: 1 }, { id: "w", label: "상자 폭", min: 0.5, max: 10, step: 0.5, v: 1 }, { id: "d", label: "깊이", min: 0.5, max: 4, step: 0.5, v: 0.5 }],
     build: p => pressed([{ len: p.b + 2 * p.d, t: "V" }, { len: p.d, t: "M", h: 1 }, { len: p.w, t: "M" }, { len: p.d, t: "V", h: 1 }]),
     calc: p => ({ unit: p.b + p.w + 4 * p.d, finish: p.b + p.w, note: "상자 양쪽으로 깊이만큼씩 접혀 들어가서, 주름 1개에 깊이의 4배가 숨어요." })
   },
@@ -214,7 +214,7 @@ const pleats = [
     no: 3, id: "inverted", name: "맞주름", en: "Inverted pleat",
     desc: "박스주름을 뒤집은 모양이에요. 두 접힘선이 겉에서 맞닿고, 안쪽에 덧단처럼 원단이 숨어 있어요.",
     use: "스커트 앞·뒤 중심, 재킷 뒤트임, 앞치마. 움직일 때만 안쪽이 살짝 보여요.",
-    params: [{ id: "w", label: "겉폭", min: 2, max: 14, step: 0.5, v: 4 }, { id: "d", label: "깊이", min: 0.5, max: 5, step: 0.5, v: 1 }],
+    params: [{ id: "w", label: "겉폭", min: 0.5, max: 14, step: 0.5, v: 1 }, { id: "d", label: "깊이", min: 0.5, max: 5, step: 0.5, v: 0.5 }],
     build: p => pressed([{ len: p.w, t: "M" }, { len: p.d, t: "V", h: 1 }, { len: 2 * p.d, t: "V", h: 1 }, { len: p.d, t: "M", h: 1 }]),
     calc: p => ({ unit: p.w + 4 * p.d, finish: p.w })
   },
@@ -222,7 +222,7 @@ const pleats = [
     no: 4, id: "organ", name: "파이프오르간 주름", en: "Pipe organ pleat",
     desc: "원단을 둥근 관 모양으로 말아 위에서 박아요. 파이프오르간의 관처럼 둥근 기둥이 나란히 서서 끝까지 내려와요.",
     use: "무대 커튼, 드레스 스커트, 소매. 관 안에 심지를 넣으면 모양이 오래 유지돼요.",
-    params: [{ id: "f", label: "관 사이 간격", min: 1, max: 12, step: 0.5, v: 2 }, { id: "c", label: "관 둘레", min: 4, max: 30, step: 1, v: 6 }, { id: "n", label: "관 입구 폭", min: 0.5, max: 4, step: 0.5, v: 0.5 }],
+    params: [{ id: "f", label: "관 사이 간격", min: 0.5, max: 12, step: 0.5, v: 1 }, { id: "c", label: "관 둘레", min: 2, max: 30, step: 0.5, v: 3 }, { id: "n", label: "관 입구 폭", min: 0.5, max: 4, step: 0.5, v: 0.5 }],
     build: p => curtain([
       { v: 0, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: p.n, len: p.c, sign: 1, mark: "S" }] },
       { v: SHEET.h, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: p.n * 2.5, len: p.c, sign: 1, mark: "S" }] }
@@ -232,9 +232,9 @@ const pleats = [
   },
   {
     no: 5, id: "accordion", name: "아코디언 주름", en: "Accordion pleat",
-    desc: "같은 간격으로 산과 골을 번갈아 접어요. 주름이 서서 늘었다 줄었다 하고, 열로 고정하면 오래가요.",
+    desc: "같은 간격으로 산과 골을 번갈아 접어요. 주름이 서서 늘었다 줄었다 하고, 열로 고정하면 오래가요. 폭을 줄일수록 이세이 미야케 플리츠처럼 촘촘해져요.",
     use: "Pleats Please 같은 열고정 플리츠, 시폰 스커트, 소매, 가방.",
-    params: [{ id: "w", label: "주름 폭", min: 0.5, max: 5, step: 0.5, v: 1.5 }],
+    params: [{ id: "w", label: "주름 폭", min: 0.3, max: 5, step: 0.1, v: 1 }],
     build: p => pressed([{ len: p.w, t: "M" }, { len: p.w, t: "V" }], true),
     calc: p => ({ unit: 2 * p.w, finish: 2 * p.w / 3, note: "주름이 서 있는 정도에 따라 달라서, 보통 완성폭의 3배로 잡고 계산했어요." })
   },
@@ -242,7 +242,7 @@ const pleats = [
     no: 6, id: "cartridge", name: "카트리지 주름", en: "Cartridge pleat",
     desc: "원단을 작은 원통으로 말아 원통끼리 맞닿게 촘촘히 세우고, 위쪽만 헤딩 깊이까지 고정해요. 아래를 집지 않아서 원통이 그대로 아래 물결로 이어져요. 원단이 3배 넘게 들어가서 A4 2장을 이어 붙여 써요.",
     use: "역사 복식의 스커트 허리, 소매산, 무거운 커튼 헤딩. 좁은 허리에 많은 원단을 모을 때 써요.",
-    params: [{ id: "D", label: "원통 지름", min: 1, max: 4, step: 0.5, v: 1.5 }, { id: "g", label: "원통 사이 띄움", min: 0, max: 5, step: 0.5, v: 0 }, { id: "h", label: "헤딩 깊이", min: 2, max: 15, step: 1, v: 5 }, { id: "sheets", label: "A4 장수", min: 1, max: 3, step: 1, v: 2 }],
+    params: [{ id: "D", label: "원통 지름", min: 0.5, max: 4, step: 0.5, v: 1 }, { id: "g", label: "원통 사이 띄움", min: 0, max: 5, step: 0.5, v: 0 }, { id: "h", label: "헤딩 깊이", min: 2, max: 15, step: 1, v: 5 }, { id: "sheets", label: "A4 장수", min: 1, max: 3, step: 1, v: 2 }],
     build: p => { const L = Math.PI * p.D, f = Math.max(0.3, 2 * arcRadius(0.8, L) - 0.8 + p.g); return curtain([
       { v: 0, pieces: [{ type: "line", len: f }, { type: "arc", chord: 0.8, len: L, sign: 1, mark: "S" }] },
       { v: p.h, pieces: [{ type: "line", len: f }, { type: "arc", chord: 0.8, len: L, sign: 1, mark: "S" }] },
@@ -256,37 +256,37 @@ const pleats = [
     no: 7, id: "goblet", name: "고블릿 주름", en: "Goblet pleat",
     desc: "위쪽은 와인잔처럼 둥글게 벌어지고, 아래쪽은 꼭 집어 박아요. 둥근 잔 모양 안에 솜이나 심지를 넣어 모양을 유지해요.",
     use: "격식 있는 커튼 헤딩, 무대 의상의 허리 장식, 페플럼.",
-    params: [{ id: "f", label: "주름 사이", min: 1.5, max: 18, step: 0.5, v: 2.5 }, { id: "c", label: "잔 둘레", min: 4, max: 26, step: 0.5, v: 6.5 }, { id: "h", label: "헤딩 깊이", min: 3, max: 16, step: 1, v: 6 }],
+    params: [{ id: "f", label: "주름 사이", min: 0.5, max: 18, step: 0.5, v: 1 }, { id: "c", label: "잔 둘레", min: 2, max: 26, step: 0.5, v: 3.5 }, { id: "h", label: "헤딩 깊이", min: 2, max: 16, step: 1, v: 4 }],
     build: p => curtain([
-      { v: 0, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: 1.5, len: p.c, sign: 1, mark: "S" }] },
-      { v: p.h * 0.45, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: 1.2, len: p.c, sign: 1, mark: "S" }] },
+      { v: 0, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: Math.min(1.5, p.c * 0.3), len: p.c, sign: 1, mark: "S" }] },
+      { v: p.h * 0.45, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: Math.min(1.2, p.c * 0.25), len: p.c, sign: 1, mark: "S" }] },
       { v: p.h, pieces: [{ type: "line", len: p.f }, { type: "fin", len: p.c, u0: 0, u1: 1, w: 0.6, mark: "S" }] },
       { v: midV(p.h), pieces: [{ type: "arc", chord: p.f * 0.9, len: p.f, sign: -1 }, { type: "arc", chord: p.c * 0.45, len: p.c, sign: 1, mark: "S" }] },
       { v: SHEET.h, pieces: [{ type: "arc", chord: p.f * 0.85, len: p.f, sign: -1 }, { type: "arc", chord: p.c * 0.55, len: p.c, sign: 1, mark: "S" }] }
     ]),
     heading: p => p.h, stitch: "heading", pinch: true,
-    calc: p => ({ unit: p.f + p.c, finish: p.f + 1.5 })
+    calc: p => ({ unit: p.f + p.c, finish: p.f + Math.min(1.5, p.c * 0.3) })
   },
   {
     no: 8, id: "triple", name: "세겹 커튼 주름", en: "Triple pinch pleat",
     desc: "주름 하나 분량을 세 갈래로 나눠 아래쪽에서 한꺼번에 집어 박아요. 위는 부채처럼 세 손가락이 벌어지고 아래는 넉넉한 물결이 돼요.",
     use: "가장 흔한 커튼 헤딩이에요. 옷에서는 스커트 허리, 볼륨 소매에 응용해요.",
-    params: [{ id: "f", label: "주름 사이", min: 1.5, max: 18, step: 0.5, v: 3 }, { id: "c", label: "주름 분량", min: 4.5, max: 24, step: 1.5, v: 6 }, { id: "h", label: "헤딩 깊이", min: 3, max: 16, step: 1, v: 6 }],
+    params: [{ id: "f", label: "주름 사이", min: 0.5, max: 18, step: 0.5, v: 1 }, { id: "c", label: "주름 분량", min: 1.5, max: 24, step: 0.5, v: 3 }, { id: "h", label: "헤딩 깊이", min: 2, max: 16, step: 1, v: 4 }],
     build: p => { const t = p.c / 3; return curtain([
-      { v: 0, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: 1.4, len: t, sign: 1 }, { type: "arc", chord: 1.4, len: t, sign: 1 }, { type: "arc", chord: 1.4, len: t, sign: 1, mark: "S" }] },
-      { v: p.h * 0.5, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: 0.9, len: t, sign: 1 }, { type: "arc", chord: 0.9, len: t, sign: 1 }, { type: "arc", chord: 0.9, len: t, sign: 1, mark: "S" }] },
+      { v: 0, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: Math.min(1.4, t * 0.6), len: t, sign: 1 }, { type: "arc", chord: Math.min(1.4, t * 0.6), len: t, sign: 1 }, { type: "arc", chord: Math.min(1.4, t * 0.6), len: t, sign: 1, mark: "S" }] },
+      { v: p.h * 0.5, pieces: [{ type: "line", len: p.f }, { type: "arc", chord: Math.min(0.9, t * 0.4), len: t, sign: 1 }, { type: "arc", chord: Math.min(0.9, t * 0.4), len: t, sign: 1 }, { type: "arc", chord: Math.min(0.9, t * 0.4), len: t, sign: 1, mark: "S" }] },
       { v: p.h, pieces: [{ type: "line", len: p.f }, { type: "fin", len: p.c, u0: 0, u1: 1 / 3, w: 0.6 }, { type: "fin", len: p.c, u0: 1 / 3, u1: 2 / 3, w: 0.6 }, { type: "fin", len: p.c, u0: 2 / 3, u1: 1, w: 0.6, mark: "S" }] },
       { v: midV(p.h), pieces: [{ type: "arc", chord: p.f * 0.9, len: p.f, sign: -1 }, { type: "arc", chord: t * 0.6, len: t, sign: 1 }, { type: "arc", chord: t * 0.6, len: t, sign: 1 }, { type: "arc", chord: t * 0.6, len: t, sign: 1, mark: "S" }] },
       { v: SHEET.h, pieces: [{ type: "arc", chord: p.f * 0.85, len: p.f, sign: -1 }, { type: "arc", chord: t * 0.7, len: t, sign: 1 }, { type: "arc", chord: t * 0.7, len: t, sign: 1 }, { type: "arc", chord: t * 0.7, len: t, sign: 1, mark: "S" }] }
     ]); },
     heading: p => p.h, stitch: "heading", pinch: true, split3: true,
-    calc: p => ({ unit: p.f + p.c, finish: p.f + 1.4 })
+    calc: p => ({ unit: p.f + p.c, finish: p.f + 3 * Math.min(1.4, p.c / 3 * 0.6) })
   },
   {
     no: 9, id: "random", name: "불규칙 주름", en: "Irregular pleat",
     desc: "폭과 깊이, 방향을 일부러 들쭉날쭉하게 접어요. 같은 원단이라도 접을 때마다 다른 리듬이 생겨요.",
     use: "아방가르드 스커트, 드레이프 탑, 구겨진 듯한 표면 연출.",
-    params: [{ id: "seed", label: "무늬 번호", min: 1, max: 40, step: 1, v: 7 }, { id: "w", label: "평균 폭", min: 1, max: 8, step: 0.5, v: 2 }, { id: "mix", label: "들쭉날쭉", min: 0, max: 1, step: 0.1, v: 0.7 }],
+    params: [{ id: "seed", label: "무늬 번호", min: 1, max: 40, step: 1, v: 7 }, { id: "w", label: "평균 폭", min: 0.5, max: 8, step: 0.5, v: 1 }, { id: "mix", label: "들쭉날쭉", min: 0, max: 1, step: 0.1, v: 0.7 }],
     build: p => { const r = rng(p.seed), seq = []; let dir = 1;
       for (let i = 0; i < 9; i++) {
         if (r() < 0.25 * p.mix) dir = -dir;
@@ -300,7 +300,7 @@ const pleats = [
     no: 10, id: "knifevar", name: "외주름 변형", en: "Knife pleat variations",
     desc: "외주름의 규칙 하나를 바꿔 새 효과를 만들어요. 가운데서 방향이 바뀌는 주름, 점점 깊어지는 주름, 3개씩 묶은 주름을 골라 볼 수 있어요.",
     use: "방향 반전은 스커트 앞중심, 점점 깊어지는 주름은 밑단으로 갈수록 퍼지는 실루엣, 묶음 주름은 리듬감 있는 스커트나 블라우스 앞판에 써요.",
-    params: [{ id: "type", label: "변형 (1·2·3)", min: 1, max: 3, step: 1, v: 1 }, { id: "w", label: "겉폭", min: 1, max: 8, step: 0.5, v: 2 }, { id: "d", label: "깊이", min: 0.5, max: 5, step: 0.5, v: 1 }],
+    params: [{ id: "type", label: "변형 (1·2·3)", min: 1, max: 3, step: 1, v: 1 }, { id: "w", label: "겉폭", min: 0.5, max: 8, step: 0.5, v: 1 }, { id: "d", label: "깊이", min: 0.5, max: 5, step: 0.5, v: 1 }],
     build: p => { const seq = [];
       const nP = Math.max(2, Math.round(SHEET.w / (p.w + 2 * p.d)));
       if (p.type === 1) for (let i = 0; i < nP; i++) { const r = i >= nP / 2; seq.push({ len: p.w, t: r ? "V" : "M" }, { len: p.d, t: r ? "M" : "V", h: 1 }, { len: p.d, t: null, h: 1 }); }
@@ -357,6 +357,9 @@ function drawDraftInner(svg, pl, p, print) {
     const pd = pressDepth();
     el("line", { x1: 0, y1: pd, x2: W, y2: pd, ...lineStyle("S") }, svg);
     txt(svg, W - 0.4, pd - 0.4, `박음 끝 (위 ${pd}cm)`, 1, "end");
+    const minLen = Math.min(...b.seq.filter(q => q.t).map(q => q.len));
+    if (minLen < 1.2) LW = Math.min(LW, minLen / 1.4);
+    if (minLen < 1.2) { const folds = b.seq.filter(q => q.t).length; txt(svg, 0.9, 2.6, `가장 좁은 칸 ${fmt(minLen * 10)}mm · 접는 선 ${folds}개`, 0.95, "start", "var(--ink)"); }
     let x = 0, k = 0;
     for (const q of b.seq) {
       if (k < 9 && q.len > 1.2) txt(svg, x + q.len / 2, 2.6, fmt(q.len), 0.95, "middle", "var(--ink)");
@@ -559,7 +562,8 @@ for (const pl of pleats) {
       const lines = new THREE.Group(); lines.name = "lines";
       const cM = new THREE.Color(css("--mountain")).getHex(), cV = new THREE.Color(css("--valley")).getHex(), cS = new THREE.Color(css("--stitch")).getHex();
       if (b.kind === "flat") {
-        for (const mk of keys[0].marks) lines.add(lineAlong(s.pos, s.rows, s.cols, mk.i, 0, s.rows - 1, mk.t === "M" ? cM : cV, mk.t === "V"));
+        // with very dense folds the coloured lines would hide the fabric, so only shading shows them
+        if (keys[0].marks.length <= 40) for (const mk of keys[0].marks) lines.add(lineAlong(s.pos, s.rows, s.cols, mk.i, 0, s.rows - 1, mk.t === "M" ? cM : cV, mk.t === "V"));
         const r12 = Math.round(pressDepth() / H * (s.rows - 1)), pts = [];
         for (let c = 0; c < s.cols; c++) { const i = (r12 * s.cols + c) * 3; pts.push(new THREE.Vector3(s.pos[i], s.pos[i + 1], s.pos[i + 2] + 0.05)); }
         const st = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: cS, dashSize: 0.8, gapSize: 0.3 })); st.computeLineDistances(); lines.add(st);
