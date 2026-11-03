@@ -298,19 +298,27 @@ function garmentSection(h, yf, yb) {
   const sec = { at, L, dL: cum[iL], dB: cum[iB], dR: cum[iR] };
   secCache.set(key, sec); return sec;
 }
+// soft vertical folds that grow toward the hem (the skirt part hangs instead of hugging)
+function fold(px, pz, h) {
+  const k = clamp((H.hip - 3 - h) / 24, 0, 1) ** 1.25;
+  if (k <= 0) return 1;
+  const th = Math.atan2(px, pz), r = Math.hypot(px, pz);
+  const amp = 1.15 * k * (0.75 * Math.sin(th * 9 + 0.7) + 0.35 * Math.sin(th * 17 + 2.1) + 0.25 * Math.sin(th * 4 - 0.4));
+  return 1 + (amp + 0.6 * k) / r;
+}
 function mapFront(x, y, lift = 0) {
   const h = yToH(y), sec = garmentSection(h, y, y), sf = sideF(y);
   const d = x >= 0 ? x / sf * sec.dL : sec.L - (-x / sf) * (sec.L - sec.dR);
   const [px, pz] = sec.at(d);
-  const r = Math.hypot(px, pz) || 1;
-  return V(px * (1 + lift / r), h, pz * (1 + lift / r));
+  const r = Math.hypot(px, pz) || 1, f = fold(px, pz, h) + lift / r;
+  return V(px * f, h, pz * f);
 }
 function mapBack(x, y, lift = 0) {
   const yf = backY(y), h = yToH(yf), sec = garmentSection(h, yf, y), sb = sideB(y);
   const d = x >= 0 ? sec.dB - x / sb * (sec.dB - sec.dL) : sec.dB + (-x / sb) * (sec.dR - sec.dB);
   const [px, pz] = sec.at(d);
-  const r = Math.hypot(px, pz) || 1;
-  return V(px * (1 + lift / r), h, pz * (1 + lift / r));
+  const r = Math.hypot(px, pz) || 1, f = fold(px, pz, h) + lift / r;
+  return V(px * f, h, pz * f);
 }
 // left sleeve along the left arm
 const ARM = [V(15.9, 132.6, -0.7), V(16.6, 128.6, -0.6), V(21.6, 101, 0.4), V(25.2, 77, 3), V(26.0, 70.5, 3.6)];

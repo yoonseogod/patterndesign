@@ -231,7 +231,7 @@ def draw_piece(v, pc, detail=True, font=1.0):
 def page_overview(c):
     W, H = landscape(A4)
     c.setPageSize((W, H))
-    s = next(1/k for k in (6, 7, 8, 9, 10) if CANVAS_W/k*CM <= W-2.4*CM and CANVAS_H/k*CM <= H-4.4*CM)
+    s = next(1/k for k in (6, 7, 8, 9, 10, 11, 12, 14) if CANVAS_W/k*CM <= W-2.4*CM and CANVAS_H/k*CM <= H-4.4*CM)
     SC = round(1/s)
     px, py = (W - CANVAS_W*s*CM)/2, H - 2.6*CM
     v = View(c, 0, 0, s, px, py)
@@ -256,12 +256,12 @@ def page_overview(c):
     for pc in pieces:
         draw_piece(v, pc, detail=False, font=.55)
     # scale bar
-    X, Y = v.p(0, CANVAS_H+1.6)
+    X, Y = v.p(0, CANVAS_H+1.6); X = 1.6*CM
     c.setStrokeColor(black); c.setLineWidth(.8)
     c.line(X, Y, X+10*s*CM, Y); c.line(X, Y-3, X, Y+3); c.line(X+10*s*CM, Y-3, X+10*s*CM, Y+3)
     c.setFont('KR', 7.5); c.setFillColor(black); c.drawString(X+10*s*CM+5, Y-2.5, f'10 cm (1:{SC})')
     # legend
-    lx = X + 3.4*CM
+    lx = 1.6*CM + 4.6*CM
     def leg(i, label, **kw):
         xx = lx + i*3.35*CM
         c.setStrokeColor(kw.get('color', black)); c.setLineWidth(kw.get('w', .9))
@@ -371,23 +371,38 @@ def page_info(c):
            ['5', '소매 (착용자 왼쪽)', '올리브 울 니트', '1', ''],
            ['6', '어깨 드레이프', '그린 체크 울', '1', '반쪽 패턴 → 대칭 전개, 바이어스'],
            ['7a/7b/7c', '삼각 아플리케', '레드 울 펠트', '1/2/1', '시접 없음'],
+           ['8 / 9-1 / 9-2', '앞 안감 / 뒤 안감 좌·우', '면 보일 또는 큐프라', '각 1', '밑단 2.5cm 짧음, 다트 박음'],
            ['-', '네크라인 바이어스', '레드 또는 아이보리', '1', f'폭 4cm x {math.ceil(m.neck_total+4)}cm']],
           [1.8, 3.4, 5.2, 1.4, 5.6])
     p('치수 표기: 파란 숫자 = 각 선의 완성선 길이(cm) · BL/WL/HL/CF 선의 숫자 = 그 조각의 해당 위치 너비(다트 포함)', indent=0)
     p('시접: 기본 1cm · 밑단 2cm · CB(지퍼) 2cm · 소매단 2.5cm · 네크라인 0 (바이어스로 감쌈) — 패턴에 포함되어 있음', indent=0)
     p('부자재: 콘솔지퍼 45cm 1개, 실 장식용 얀(레드·오렌지·머스터드·아이보리) 다량, 레드 지그재그 스티치용 실', indent=0)
     h('3. 봉제 순서')
-    steps = ['① 퀼팅 원단에 패턴을 놓고 재단 (점선 격자 = 6cm 다이아 퀼팅 가이드). 앞판에는 다트가 없고(솔기로 이동), 뒤판 다트만 박는다.',
+    steps = ['① 퀼팅 조각은 아래 4번 표 크기로 먼저 잘라 퀼팅 → 패턴을 다시 대고 정확히 재단. 앞판 다트는 솔기로 이동, 뒤판 다트만 박는다.',
              '② 앞 중심판: 1-1 + 1-2 + 1-3 을 빨간 패널선끼리 너치 맞춰 연결. 앞 옆판: 1-4 + 1-5 연결.',
              '③ 프린세스선: 중심판 + 옆판을 BP(너치 1개)·허리(너치 2개) 맞춰 봉제 — 가슴 입체가 여기서 생김.',
              '④ 앞판 B 베이스에 얀을 루프/크로셰 메쉬로 손바느질 고정, 일부는 밑단 아래로 길게(바닥까지) 늘어뜨림.',
              '⑤ 앞 중심판 + 앞판 B 스타일선 연결 (BP·허리 너치) → 솔기 위 레드 지그재그 장식 스티치. 삼각 아플리케 부착.',
              '⑥ 뒤판 CB에 콘솔지퍼(너치까지) 달고 아래는 박음. 왼쪽 어깨선 · 양 옆선 봉제.',
+             '⑥-2 안감: 다트·어깨·옆선 봉제 → 오른쪽 본 채널(앞 2·뒤 1, 길이 15cm)에 플라스틱 본 삽입.',
+             '      겉감과 안감을 겉끼리 맞대 진동 봉제, 지퍼 옆은 손 공그르기, 네크라인은 바이어스로 함께 감쌈.',
              '⑦ 네크라인(앞 오른쪽 옆선 → 왼쪽 어깨 → 뒤 → 오른쪽 옆선) 바이어스로 감싸 처리. 오른쪽 윗선은 본 1~2개 권장.',
              '⑧ 소매: 이세 처리 후 왼쪽 진동에 달기 (앞 너치 1개, 뒤 너치 2개, SP 맞춤). 드레이프는 셔링 10cm → SP 맞춰 고정.',
              '⑨ 밑단 2cm 접어 마무리 → 밑단 레드 지그재그 스티치.']
     for t in steps: p(t, size=8.4)
-    h('4. 인쇄 · 조립 방법')
+    h('4. 퀼팅 수축 대비 1차 재단 (퀼팅하면 원단이 3~5% 줄어듦)')
+    qp = [p_ for p_ in m.pieces if p_.get('quilt')]
+    rows = [['패턴', '1차 재단 직사각형 (퀼팅 전)', '패턴', '1차 재단 직사각형 (퀼팅 전)']]
+    cells = []
+    for p_ in qp:
+        b = p_['bbox']; w_ = (b[2]-b[0])*1.05+4; h_ = (b[3]-b[1])*1.05+4
+        cells.append([p_['name'].split('  ')[0] + ' ' + p_['name'].split('  ')[1], f'{math.ceil(w_)} × {math.ceil(h_)} cm'])
+    for i in range(0, len(cells), 2):
+        r = cells[i] + (cells[i+1] if i+1 < len(cells) else ['', ''])
+        rows.append(r)
+    table(rows, [3.6, 4.9, 3.6, 4.9], size=8.0)
+    p('= 시접 포함 패턴 크기 × 1.05 + 4cm. 퀼팅 후 패턴을 다시 올려 정확히 자르면 수축과 가장자리 뒤틀림이 모두 정리됩니다.', size=8.0, color=GREY)
+    h('5. 인쇄 · 조립 방법')
     for t in ['- 4페이지부터 실물 크기 A4입니다. 인쇄 시 반드시 "실제 크기 / 100%" 선택 (페이지 맞춤 해제).',
               '- A1 페이지의 5cm × 5cm 테스트 사각형을 자로 확인한 뒤 나머지를 인쇄하세요.',
               '- 각 페이지의 오른쪽 · 아래 여백을 회색 테두리선에서 잘라내고, 옆 페이지 테두리선에 맞춰 붙입니다.',

@@ -464,6 +464,77 @@ for code, nm, p in FRONT_PANELS:
     p['label'] = [f'{code}  {nm}', '퀼팅 x1 (겉면 위로)']
     p['autolabel'] = True; p['grain'] = 'auto'; p['texts'] = []; p['marks'] = []; p['dartlabels'] = []
     pieces.append(p)
+# ================================================================ LINING (+ boning channels)
+# Lining = shell outline without the patchwork/princess/style splits (darts sewn as darts), hem 2.5cm shorter.
+# The neckline is bound together with the shell, so no facing is needed.
+from shapely.affinity import translate as _translate
+def _outline(pc):
+    pts = []
+    for e in pc['edges']: pts += e['pts'] if not pts else e['pts'][1:]
+    return Polygon(pts).buffer(0)
+def poly_piece(name, poly, refs, default_sa=2.0, tol=0.3, **kw):
+    ring = list(poly.exterior.coords)[:-1]
+    segs = []
+    for i in range(len(ring)):
+        a, b = ring[i], ring[(i+1) % len(ring)]
+        if math.dist(a, b) < 1e-6: continue
+        mid = Point((a[0]+b[0])/2, (a[1]+b[1])/2)
+        best = min(refs, key=lambda r: r[0].distance(mid))
+        tag = (best[1], best[2], id(best[0])) if best[0].distance(mid) < tol else (default_sa, 'hem', 0)
+        segs.append((a, b, tag))
+    k = next(i for i in range(len(segs)) if segs[i][2] != segs[i-1][2])
+    segs = segs[k:] + segs[:k]
+    edges = []
+    for a, b, tag in segs:
+        if edges and edges[-1]['_t'] == tag: edges[-1]['pts'].append(b)
+        else: edges.append(dict(pts=[a, b], sa=tag[0], n=tag[1], _t=tag))
+    i = 0
+    while i < len(edges):                       # absorb tiny slivers into the previous edge
+        if plen(edges[i]['pts']) < 0.6 and len(edges) > 3:
+            prev = edges[i-1]; prev['pts'] += edges[i]['pts'][1:]; edges.pop(i)
+            nxt = edges[i % len(edges)]
+            if nxt is not prev and nxt['_t'] == prev['_t']:
+                prev['pts'] += nxt['pts'][1:]; edges.remove(nxt)
+            continue
+        i += 1
+    return piece(name, edges, **kw)
+def _refs(*pcs):
+    return [(LineString(e['pts']), e['sa'], e.get('n')) for pc in pcs for e in pc['edges']]
+def _lining(poly, hem):
+    """cut the shell outline 2.5cm above its hem line (hem given left->right or right->left)"""
+    h = [(x, y-2.5) for x, y in hem]
+    if h[0][0] > h[-1][0]: h = h[::-1]
+    h = [(h[0][0]-12, h[0][1])] + h + [(h[-1][0]+12, h[-1][1])]
+    below = Polygon(h + [(h[-1][0], 300), (h[0][0], 300)])
+    return poly.difference(below)
+def _channel(x, y0, L=15):
+    return [[(x-0.5, y0+0.5), (x-0.5, y0+L)], [(x+0.5, y0+0.5), (x+0.5, y0+L)]]
+def _neck_y(curve, x):
+    g = LineString(curve).intersection(LineString([(x, -50), (x, 150)])); return g.y
+
+dartR_kite = Polygon([BPR, (-7.25, 42), (-9, 56), (-10.75, 42)])
+front_lin = _lining(_outline(FA).union(_outline(FB)).union(dartR_kite).buffer(0.01).buffer(-0.01), hem_A[:-1] + [HB] + hem_B[1:])
+LF = poly_piece('8  앞 안감', front_lin, _refs(FA, FB))
+LF['marks'] = [side_dart(side_L, 5, 11.5), side_dart(side_R, 4, -11.5),
+               [(9-1.75, 42), (9, 28), (9+1.75, 42), (9, 56), (9-1.75, 42)],
+               [(-9-1.75, 42), (-9, 28), (-9+1.75, 42), (-9, 56), (-9-1.75, 42)]] \
+              + _channel(-21, _neck_y(neck_f, -21)) + _channel(-15, _neck_y(neck_f, -15))
+LF['guides'] = [('CF', [(0, -5), (0, 100)])]
+LF['dartlabels'] = [((12.4, 45.5), '다트 3.5'), ((-12.4, 45.5), '다트 3.5'), ((17.2, 29.6), '다트 3.0'),
+                    ((-17.6, 30.6), '다트 3.0'), ((-18, 30.8+8), '본 채널 15cm')]
+for code, src, nm in (('9-1', BL, '뒤 안감 왼쪽'), ('9-2', BR, '뒤 안감 오른쪽')):
+    lp = poly_piece(f'{code}  {nm}', _lining(_outline(src), src['edges'][1 if src is BL else 2]['pts']), _refs(src))
+    lp['marks'] = list(src['marks']); lp['guides'] = []
+    lp['dartlabels'] = [((13.6 if src is BL else -13.6, 43), '다트 3.5')]
+    if src is BR:
+        lp['marks'] += _channel(-20, _neck_y(neck_bR, -20)); lp['dartlabels'].append(((-16.5, 38), '본 채널 15cm'))
+    globals()['L' + code.replace('-', '_')] = lp
+for lp, lab in ((LF, ['8  앞 안감', '안감 x1 (겉면 위로)', '밑단 2.5cm 짧음']),
+                (L9_1, ['9-1  뒤 안감 왼쪽', '안감 x1', '밑단 2.5cm 짧음']),
+                (L9_2, ['9-2  뒤 안감 오른쪽', '안감 x1', '밑단 2.5cm 짧음'])):
+    lp.update(label=lab, autolabel=True, grain='auto', texts=[])
+LININGS = [LF, L9_1, L9_2]
+
 pieces.sort(key=lambda p: p['name'])
 FRONT_LINES = dict(princess=prin_c, style=style_A, L1=L1, L2=L2)
 
