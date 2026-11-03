@@ -535,6 +535,18 @@ for lp, lab in ((LF, ['8  앞 안감', '안감 x1 (겉면 위로)', '밑단 2.5c
     lp.update(label=lab, autolabel=True, grain='auto', texts=[])
 LININGS = [LF, L9_1, L9_2]
 
+# ---- matching notches for the toile: side-seam waist, lining armhole / zipper, drape shoulder point
+_WB = (20.5, 39.0)
+_side_low = dict((c, p) for c, _, p in FRONT_PANELS)['1-5']
+_side_low['notches'] += [(W_F, 2)]
+FBN['notches'] += [((-21.5, 42.0), 2)]
+BL['notches'] += [(_WB, 2)]
+BR['notches'] += [((-_WB[0], _WB[1]), 2)]
+LF['notches'] += [(W_F, 2), ((-21.5, 42.0), 2), (at(front_arm, plen(front_arm)-8), 1)]
+L9_1['notches'] += [(_WB, 2), ((0.0, ZIP_END), 1), (at(back_arm, plen(back_arm)-9), 2)]
+L9_2['notches'] += [((-_WB[0], _WB[1]), 2), ((0.0, ZIP_END), 1)]
+DRP['notches'] += [((36.0, 25.0), 1)]
+
 pieces.sort(key=lambda p: p['name'])
 FRONT_LINES = dict(princess=prin_c, style=style_A, L1=L1, L2=L2)
 
