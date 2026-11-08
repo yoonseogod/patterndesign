@@ -36,6 +36,8 @@ SIZES = {
 }
 
 SA = 1.0        # 기본 시접
+SA_SIDE = 1.5   # 옆선 · 뒤중심 (맞음새 조정분)
+NET = True      # True: 시접 없는 완성선 패턴 (시접 폭은 글자로 표기), --sa 로 시접 포함 버전
 HEM = 4.0       # 몸판 밑단 시접
 SLEEVE_HEM = 4.0
 FUSE_HEM = 5.0  # 소매 밑단 심지 폭
@@ -139,12 +141,13 @@ class Piece:
         self.texts = list(texts)      # (x, y, 문자열, 크기)
         self.fold_label = fold_label
         self.fuse = fuse              # 심지: "all" = 조각 전체, "hem" = 밑단 5cm
+        self.sa_marks = []            # (점, 시접 cm 또는 문자열) — 선 안쪽에 시접 폭 표기
         self.build_cut()
 
     def build_cut(self):
         poly = Polygon(self.outline).buffer(0)
-        cut = poly.buffer(self.sa, join_style=2, mitre_limit=2.5) if self.sa > 0 else poly
-        if self.hem:
+        cut = poly.buffer(self.sa, join_style=2, mitre_limit=2.5) if (self.sa > 0 and not NET) else poly
+        if self.hem and not NET:
             hp, depth = self.hem
             s = self.sa
             a, b = hp[0], hp[-1]
@@ -187,6 +190,7 @@ class Piece:
         self.dots = [(x + dx, y + dy, r) for x, y, r in self.dots]
         self.notches = [T(p) for p in self.notches]
         self.texts = [(x + dx, y + dy, s, z) for x, y, s, z in self.texts]
+        self.sa_marks = [((p[0] + dx, p[1] + dy), v) for p, v in self.sa_marks]
         self.build_cut()
         return self
 
@@ -437,6 +441,38 @@ def draft(size):
                             texts=[(1.5, 1.4, "벨트 끝 본 — 벨트 끝 모양을 옮겨 그리세요", 0.45),
                                    (1.5, 4.1, "완성 폭 5cm", 0.45)]))
 
+    # 시접 폭 표기 (선 위의 한 점 → 그 선 안쪽에 글자)
+    mid = lambda pts: pts[len(pts) // 2]
+    marks = {
+        "back": [(mid(back_neck), SA), (lerp((bnw, 0), sp_b, 0.5), SA), (mid(back_arm), SA),
+                 (mid(back_side), SA_SIDE), (((sideX + flare - 5) / 2, y_L), f"밑단 시접 {HEM:g}cm"),
+                 ((-5, (vent_top + y_L) / 2), SA), ((0, (cb_rise + vent_top - 5) / 2), SA_SIDE)],
+        "front": [(lerp(f_snp, sp_f, 0.5), SA), (mid(front_arm_out), SA), (mid(front_side), SA_SIDE),
+                  (((Wh + DB + sideX - flare) / 2, y_L), f"밑단 시접 {HEM:g}cm"),
+                  ((Wh + DB, (lp[1] + y_L) / 2), SA), (lerp(ce, lp, 0.5), SA), (mid(front_neck), SA)],
+        "facing": [(lerp(q, f_snp, 0.5), SA), (mid(front_neck), SA), ((Wh + DB, (lp[1] + y_L) / 2 + 15), SA),
+                   ((Wh + DB / 2 - 2, y_L), f"밑단 시접 {HEM:g}cm"), ((Wh - 4, scye + 12), SA),
+                   (lerp(ce, lp, 0.5), SA)],
+        "gunflap": [(lerp(f_snp, sp_f, 0.5), SA), (mid(arm_part), SA), (lerp(g1, (g1[0] + 8, yg + 3.0), 0.5), SA),
+                    (((g1[0] + 8 + Wh - 4) / 2, yg + 2.5), SA), (mid(neck_pts), SA)],
+        "shield": [(mid(back_neck), SA), (lerp((bnw, 0), sp_b, 0.5), SA), (mid(bs_arm), SA), (mid(shield_hem), SA)],
+        "topsleeve": [((fq + 2, y_at_x(capc, fq + 2)), SA), (lerp(tb0, tb1, 0.5), SA), (mid(front_seam), SA),
+                      (lerp(tf1, tb1, 0.5), f"밑단 시접 {SLEEVE_HEM:g}cm")],
+        "undersleeve": [(mid(sub_by_x(capc, bq + eb, B)), SA), (lerp(tb0, (wb + eb, SLg), 0.5), SA),
+                        (rot(lerp((fq - ef + B, y_at_x(capc, fq - ef)), (wf - ef + B, SLg), 0.5), (B, CH), ang), SA),
+                        (lerp(hem_r, hem_l, 0.5), f"밑단 시접 {SLEEVE_HEM:g}cm")],
+        "stand": [(mid(stand_bot), SA), (mid(stand_top), SA), ((Lc + 0.25, -2.4), SA)],
+        "collar": [(mid(fall_bot), SA), (mid(fall_top), SA), (lerp((Lc - 0.3, 1.5), (Lc + 3.0, -8.6), 0.5), SA)],
+        "epaulette": [(((sh_len_f - 1.5) / 2, 4.75), "사방 시접 1cm")],
+        "cuffstrap": [((sl_strap_len / 2, 0), "사방 시접 1cm")],
+        "latch": [((8, 0), "사방 1cm")],
+        "welt": [((9, 9), "사방 시접 1cm")],
+        "bag": [((10, 0), "사방 시접 1cm")],
+        "belttip": [((11, 5), "사방 시접 1cm")],
+    }
+    for p in piece_list:
+        p.sa_marks = marks.get(p.key, [])
+
     info = dict(Wh=Wh, scye=scye, AH=AH, CH=CH, B=B, wW=wW, SLg=SLg, Lc=Lc,
                 chest_garment=4 * Wh / 2 * 1, length=m["coat_len"],
                 belt_len=round(2 * (Wh - 1.6) * 2 / 2 + 45))
@@ -553,6 +589,31 @@ def draw_fuse(c, p):
         text(c, gx, gy, "심지", 0.45, "KRB", anchor="center")
 
 
+def draw_sa_marks(c, p):
+    """완성선 안쪽에 '시접 1cm' 같은 글자를 선 방향으로 적는다."""
+    line = LineString(p.outline + [p.outline[0]])
+    for pt, v in p.sa_marks:
+        label = v if isinstance(v, str) else f"시접 {v:g}cm"
+        d = line.project(Point(pt))
+        a, b = line.interpolate(max(0, d - 0.5)), line.interpolate(d + 0.5)
+        tx, ty = b.x - a.x, b.y - a.y
+        L = math.hypot(tx, ty) or 1
+        nx, ny = -ty / L, tx / L
+        base = line.interpolate(d)
+        if not p.poly.contains(Point(base.x + nx * 0.3, base.y + ny * 0.3)):
+            nx, ny = -nx, -ny
+        ang = math.degrees(math.atan2(ty, tx))
+        if ang > 90 or ang < -90:
+            ang += 180
+        # 글자 가운데를 선 안쪽 0.75cm에 두고, 기준선은 글자 높이 절반만큼 아래로
+        r = math.radians(ang)
+        down = (-math.sin(r), math.cos(r))
+        x = base.x + nx * 0.75 + down[0] * 0.16
+        y = base.y + ny * 0.75 + down[1] * 0.16
+        c.setFillColorRGB(0.75, 0.1, 0.1)
+        text(c, x, y, label, 0.45, "KRB", angle=ang, anchor="center")
+
+
 def draw_piece(c, p):
     # 재단선
     c.setFillColorRGB(0.965, 0.955, 0.93)
@@ -561,12 +622,15 @@ def draw_piece(c, p):
     c.drawPath(poly_path(c, p.cut_pts), stroke=1, fill=1)
     if p.fuse_poly is not None and not p.fuse_poly.is_empty:
         draw_fuse(c, p)
-    # 완성선
-    c.setStrokeColorRGB(0.25, 0.25, 0.25)
-    lw(c, 0.5)
-    c.setDash([0.3, 0.2])
-    c.drawPath(poly_path(c, p.outline), stroke=1, fill=0)
-    c.setDash([])
+    # 완성선 (시접 포함 버전에서만 점선으로 따로)
+    if not NET:
+        c.setStrokeColorRGB(0.25, 0.25, 0.25)
+        lw(c, 0.5)
+        c.setDash([0.3, 0.2])
+        c.drawPath(poly_path(c, p.outline), stroke=1, fill=0)
+        c.setDash([])
+    if NET:
+        draw_sa_marks(c, p)
     # 골선
     if p.fold_x is not None:
         miny, maxy = p.cut.bounds[1], p.cut.bounds[3]
@@ -615,7 +679,8 @@ def draw_piece(c, p):
         base = line.interpolate(d)
         if p.poly.contains(Point(base.x + nx * 0.3, base.y + ny * 0.3)):
             nx, ny = -nx, -ny
-        c.line(base.x - nx * 0.2, base.y - ny * 0.2, base.x + nx * (p.sa + 0.05), base.y + ny * (p.sa + 0.05))
+        out = 0.6 if NET else p.sa + 0.05
+        c.line(base.x - nx * 0.3, base.y - ny * 0.3, base.x + nx * out, base.y + ny * out)
     # 식서
     if p.grain:
         c.setStrokeColorRGB(0, 0, 0)
@@ -671,7 +736,7 @@ def cover_page(c, size, info, pieces, rows, used):
     c.setFont("KRB", 20)
     c.drawString(1.5 * cm, PH - 2.3 * cm, "남성 더블브레스티드 트렌치코트")
     c.setFont("KR", 11)
-    c.drawString(1.5 * cm, PH - 3.1 * cm, f"사이즈 {size}  ·  A4 분할 인쇄 패턴 (실제 크기 1:1)  ·  시접 포함")
+    c.drawString(1.5 * cm, PH - 3.1 * cm, f"사이즈 {size}  ·  A4 분할 인쇄 패턴 (실제 크기 1:1)  ·  " + ("시접 미포함 (시접 폭은 각 선에 표기)" if NET else "시접 포함"))
     y = PH - 4.2 * cm
     c.setFont("KRB", 10)
     c.drawString(1.5 * cm, y, "기준 신체 치수")
@@ -698,10 +763,15 @@ def cover_page(c, size, info, pieces, rows, used):
     c.setFont("KRB", 10)
     c.drawString(1.5 * cm, y, "선 보는 법")
     c.setFont("KR", 8.6)
-    legend = ["굵은 실선 = 재단선 (시접 포함: 기본 1cm, 몸판·소매 밑단 4cm)",
-              "점선 = 완성선(박음선) · 짧은 눈금 = 맞춤 표시(노치) · 양방향 화살표 = 식서(올) 방향",
+    legend = [("굵은 실선 = 완성선(박음선). 시접은 직접 그려 주세요 — 빨간 글자가 그 선의 시접 폭"
+               if NET else "굵은 실선 = 재단선 (시접 포함: 기본 1cm, 몸판·소매 밑단 4cm)"),
+              ("시접: 기본 1cm · 옆선·뒤중심 1.5cm · 몸판·소매 밑단 4cm · 골선은 시접 없음" if NET
+               else "점선 = 완성선(박음선)"),
+              "짧은 눈금 = 맞춤 표시(노치) · 양방향 화살표 = 식서(올) 방향",
               "빨간 굵은 선 = 골선 (원단을 접어서 재단, 시접 없음) · 원 = 단추 위치",
               "주황 빗금 = 심지 붙이는 곳: 칼라 · 칼라 스탠드 · 앞 안단(전체), 윗소매 · 밑소매(밑단 5cm)"]
+    if NET:
+        legend.append("  (소매 밑단 심지 5cm = 밑단 시접 4cm + 완성선 위 1cm. 패턴엔 완성선 위 1cm만 빗금)")
     for i, s in enumerate(legend):
         c.drawString(1.5 * cm, y - (i + 1) * 12.5, s)
     test_square(c, 1.5 * cm, 1.5 * cm, 10, "10 × 10 cm")
@@ -810,7 +880,8 @@ def build(size):
     used = [(ci, ri) for ri in range(rows) for ci in range(COLS) if tile_used(pieces, ci, ri)]
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    path = os.path.join(OUT_DIR, f"trench_men_{size}_A4.pdf")
+    sfx = "" if NET else "_withSA"
+    path = os.path.join(OUT_DIR, f"trench_men_{size}_A4{sfx}.pdf")
     c = canvas.Canvas(path, pagesize=A4)
     c.setTitle(f"남성 트렌치코트 패턴 {size} (A4)")
     cover_page(c, size, info, pieces, rows, used)
@@ -820,7 +891,7 @@ def build(size):
 
     # 복사실용 한 장짜리
     W, H = COLS * TILE_W, rows * TILE_H
-    full = os.path.join(OUT_DIR, f"trench_men_{size}_fullsize.pdf")
+    full = os.path.join(OUT_DIR, f"trench_men_{size}_fullsize{sfx}.pdf")
     c = canvas.Canvas(full, pagesize=(W * cm, H * cm))
     c.setTitle(f"남성 트렌치코트 패턴 {size} (전체 1장)")
     c.saveState()
@@ -837,5 +908,9 @@ def build(size):
 
 
 if __name__ == "__main__":
-    for s in (sys.argv[1:] or list(SIZES)):
+    args = sys.argv[1:]
+    if "--sa" in args:
+        NET = False
+        args.remove("--sa")
+    for s in (args or list(SIZES)):
         build(s)
