@@ -581,28 +581,78 @@ COLS = 5
 GAP = 2.0
 
 
-def layout(pieces):
-    """스카이라인 배치: 큰 조각부터 가장 높이(위) 놓일 수 있는 자리에 둔다."""
-    W = COLS * TILE_W
-    step = 0.5
-    n = int(W / step)
-    sky = [0.0] * n
-    order = sorted(pieces, key=lambda p: -((p.bounds()[2] - p.bounds()[0]) * (p.bounds()[3] - p.bounds()[1])))
-    for p in order:
-        minx, miny, maxx, maxy = p.bounds()
-        w, h = maxx - minx + GAP, maxy - miny + GAP
-        k = int(math.ceil(w / step))
+def _profiles(p, step):
+    """조각을 step 폭의 세로 띠로 나눠, 띠마다 위·아래 끝 (조각 bounds 기준)."""
+    shape = p.cut.buffer(GAP / 2)
+    minx, miny, maxx, maxy = shape.bounds
+    k = int(math.ceil((maxx - minx) / step))
+    top, bot = [], []
+    for j in range(k):
+        col = shape.intersection(box(minx + j * step, miny - 1, minx + (j + 1) * step, maxy + 1))
+        if col.is_empty:
+            top.append(1e9); bot.append(-1e9)
+        else:
+            top.append(col.bounds[1] - miny); bot.append(col.bounds[3] - miny)
+    return minx, miny, top, bot
+
+
+def _pack(pieces, cols, keyf, step=0.5):
+    """윤곽 스카이라인 배치: 조각의 실제 윗선 모양대로 아래 조각 위에 끼워 넣는다."""
+    import numpy as np
+    n = int(cols * TILE_W / step)
+    sky = np.zeros(n)
+    offsets = {}
+    for p in sorted(pieces, key=keyf):
+        minx, miny, top, bot = _profiles(p, step)
+        top, bot = np.array(top), np.array(bot)
+        k = len(top)
+        if k > n:
+            return None
+        valid = top < 1e8
         best = None
         for i in range(0, n - k + 1):
-            y = max(sky[i:i + k])
+            y = max(0.0, float(np.max(sky[i:i + k][valid] - top[valid])))
             if best is None or y < best[0] - 1e-9:
                 best = (y, i)
         y, i = best
-        p.moved(i * step + GAP - minx, y + GAP - miny)
-        for j in range(i, i + k):
-            sky[j] = y + h
-    total_h = max(sky) + GAP
-    return math.ceil(total_h / TILE_H)
+        offsets[id(p)] = (i * step - minx, y - miny)
+        seg = sky[i:i + k]
+        sky[i:i + k] = np.where(valid, np.maximum(seg, y + bot), seg)
+    rows = math.ceil((float(sky.max()) + GAP / 2) / TILE_H)
+    return offsets, rows
+
+
+def layout(pieces):
+    """여러 배치(열 수 4~6 × 정렬 순서 4가지)를 시험해 인쇄할 A4 장수가 가장 적은 것을 고른다."""
+    global COLS
+    from shapely import affinity
+    area = lambda p: -(p.bounds()[2] - p.bounds()[0]) * (p.bounds()[3] - p.bounds()[1])
+    keys = [area, lambda p: -(p.bounds()[3] - p.bounds()[1]), lambda p: -(p.bounds()[2] - p.bounds()[0]),
+            lambda p: -p.cut.area]
+    best = None
+    for cols in (4, 5, 6):
+        for keyf in keys:
+            r = _pack(pieces, cols, keyf)
+            if r is None:
+                continue
+            offsets, rows = r
+            moved = [affinity.translate(p.cut, *offsets[id(p)]) for p in pieces]
+            used = 0
+            slivers = 0
+            for ri in range(rows):
+                for ci in range(cols):
+                    t = box(ci * TILE_W, ri * TILE_H, (ci + 1) * TILE_W, (ri + 1) * TILE_H)
+                    a = sum(m.intersection(t).area for m in moved)
+                    if a > 0:
+                        used += 1
+                        slivers += a < 0.03 * TILE_W * TILE_H
+            score = (used, slivers, rows)
+            if best is None or score < best[0]:
+                best = (score, cols, offsets, rows)
+    _, COLS, offsets, rows = best
+    for p in pieces:
+        p.moved(*offsets[id(p)])
+    return rows
 
 
 # ── 그리기 ────────────────────────────────────────────────────────────────
@@ -882,7 +932,8 @@ def draw_grid(c, W, H):
 
 def tile_used(pieces, ci, ri):
     t = box(ci * TILE_W, ri * TILE_H, (ci + 1) * TILE_W, (ri + 1) * TILE_H)
-    return any(p.cut.intersects(t) for p in pieces)
+    # 가장자리에 선만 닿는 칸(면적 0)은 이웃 장에 이미 그려지므로 인쇄하지 않는다
+    return any(p.cut.intersection(t).area > 0.05 for p in pieces)
 
 
 def tile_name(ci, ri):

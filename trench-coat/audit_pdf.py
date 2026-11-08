@@ -47,8 +47,8 @@ with pdfplumber.open(A4) as pdf:
     exp = [G.tile_name(ci, ri) for ci, ri in used]
     bad = []
     for pg, (ci, ri) in zip(pdf.pages[2:], used):
-        t = pg.extract_text() or ""
-        if f"열 {chr(65 + ci)} / 행 {ri + 1}" not in t:
+        hdr = "".join(ch["text"] for ch in pg.chars if ch["top"] < 25 and abs(ch["size"] - 7) < 0.3)
+        if f"열{chr(65 + ci)}/행{ri + 1}" not in hdr.replace(" ", ""):
             bad.append(G.tile_name(ci, ri))
     names = exp if not bad else bad
     check("각 장의 칸 이름(A1, B1 …)이 배치 순서와 일치", names == exp,
@@ -71,7 +71,10 @@ for (ci, ri), f in zip(used, tiles):
     crop = t[M:M + TH, M:M + TW]
     ref = full[ri * TH:(ri + 1) * TH, ci * TW:(ci + 1) * TW]
     h, w = min(crop.shape[0], ref.shape[0]), min(crop.shape[1], ref.shape[1])
-    d = np.abs(crop[3:h - 3, 3:w - 3] - ref[3:h - 3, 3:w - 3])
+    # 1픽셀 렌더링 어긋남(글자 안티앨리어싱)은 허용: 상하좌우 1px 이동 중 가장 작은 차이
+    cc = crop[3:h - 3, 3:w - 3]
+    d = np.min([np.abs(cc - ref[3 + dy:h - 3 + dy, 3 + dx:w - 3 + dx])
+                for dy in (-1, 0, 1) for dx in (-1, 0, 1)], axis=0)
     if (ci, ri) == (0, 0):
         d[-int(4 * px):, :int(4 * px)] = 0  # 3cm 시험 사각형 자리
     frac = (d > 60).mean()
@@ -87,7 +90,7 @@ for ri in range(rows):
     for ci in range(G.COLS):
         if (ci, ri) in used:
             continue
-        reg = full[ri * TH + 2:(ri + 1) * TH - 2, ci * TW + 2:(ci + 1) * TW - 2]
+        reg = full[ri * TH + 6:(ri + 1) * TH - 6, ci * TW + 6:(ci + 1) * TW - 6]  # 가장자리 0.3cm: 이웃 장 선 두께
         if (reg < 200).sum() > 5:
             missing.append(G.tile_name(ci, ri))
 check("인쇄 안 하는 빈 칸에 패턴 선·글자가 없음", not missing, ",".join(missing))
