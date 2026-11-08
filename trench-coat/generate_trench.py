@@ -285,14 +285,13 @@ def draft(size):
     back_cb = [(-5, y_L), (-5, vent_top), (0, vent_top - 5), (0, cb_rise)]
     back_outline = join(back_neck, back_arm, back_side, back_hem, back_cb)
     piece_list.append(Piece(
-        "back", "뒤판", "겉감 2장 (좌우 대칭)", back_outline, hem=(list(reversed(back_hem)), HEM),
+        "back", "뒤판", "겉감 2장 · 안감 2장 (좌우 대칭)", back_outline, hem=(list(reversed(back_hem)), HEM),
         grain=((12, 30), (12, 80)),
         lines=[([(0, y_w), (sideX - 0.8, y_w)], "dash", "허리선"),
                ([(0, y_h), (sideX - 0.2, y_h)], "dash", "엉덩이선"),
                ([(0, vent_top - 5), (0, y_L)], "dot", "뒤중심 (트임 꺾임선)")],
         notches=[b_mid, point_at(back_arm, plen(back_arm1) + 1.2), (sideX - 0.8, y_w - 2.5), (sideX - 0.8, y_w + 2.5)],
         texts=[(5, y_w - 12, "뒤판 BACK", 1.4), (5, y_w - 9.5, f"사이즈 {size}", 0.9),
-               (5, y_w - 7.5, "겉감 2장 · 안감 2장", 0.7),
                (sideX - 6, y_w + 4, "벨트고리 위치", 0.5)]))
 
     # 앞판 (앞중심 x = Wh)
@@ -335,7 +334,7 @@ def draft(size):
     yg = sp_f[1] + 14
     gun_line_pts = [(Wh - 4, yg + 2), (Wh - 4, fnd)]
     piece_list.append(Piece(
-        "front", "앞판", "겉감 2장 (좌우 대칭)", front_outline, hem=(list(reversed(front_hem)), HEM),
+        "front", "앞판", "겉감 2장 · 안감 2장 (좌우 대칭)", front_outline, hem=(list(reversed(front_hem)), HEM),
         grain=((Wh - 6, 32), (Wh - 6, 88)),
         lines=[([(Wh, fnd), (Wh, y_L)], "dashdot", "앞중심 CF"),
                ([(sideX + 0.8, y_w), (Wh + DB, y_w)], "dash", "허리선"),
@@ -346,7 +345,6 @@ def draft(size):
         dots=btn,
         notches=[f_mid, ce, (sideX + 0.8, y_w - 2.5), (sideX + 0.8, y_w + 2.5)],
         texts=[(sideX + 3, y_w - 14, "앞판 FRONT", 1.4), (sideX + 3, y_w - 11.5, f"사이즈 {size}", 0.9),
-               (sideX + 3, y_w - 9.5, "겉감 2장 · 안감 2장", 0.7),
                (Wh + 1, rows_y[4] + 5, "단추 5행 × 2열", 0.55),
                (sideX + 3, y_w + 27, "주머니 웰트", 0.55)]))
 
@@ -510,7 +508,7 @@ def draft(size):
                             lines=[([(0, 4.5), (18, 4.5)], "dot", "접는 선")],
                             texts=[(1.5, 2.8, "주머니 웰트 WELT", 0.6), (1.5, 7.2, f"사이즈 {size}", 0.5)]))
     bag = join([(0, 0), (20, 0)], bez((20, 0), (20, 22), (20, 30), (12, 30)), bez((12, 30), (2, 30), (0, 26), (0, 18)))
-    piece_list.append(Piece("bag", "주머니감", "안감/스레기 4장", bag, grain=((10, 3), (10, 26)),
+    piece_list.append(Piece("bag", "주머니감", "안감 또는 스레키 4장", bag, grain=((10, 3), (10, 26)),
                             texts=[(2, 9, "주머니감 POCKET BAG", 0.7), (2, 11, f"사이즈 {size}", 0.55)]))
     belt_tip = strap(25, 5.0, 5.0, 3.0)
     piece_list.append(Piece("belttip", "벨트 끝 본", "본 (재단 안내 참조)", belt_tip,
@@ -956,9 +954,9 @@ def cover_page(c, size, info, pieces, rows, used):
     c.drawString(1.5 * cm, y, "재단 목록")
     c.setFont("KR", 8.2)
     items = [f"{p.name}: {p.cut_txt}" for p in pieces if p.key != "belttip"]
-    items += [f"벨트: {info['belt_len']} × 12cm 직사각형 1장 (반 접어 완성 폭 5cm, 끝은 '벨트 끝 본' 참조)",
-              "벨트고리: 6 × 6cm 4장 (허리 옆선용)  ·  소매 버클 2개, 벨트 버클 1개",
-              "단추: 앞 2.3cm 10개 + 안쪽 단추 1개, 견장·탭용 1.6cm 6개",
+    items += [f"벨트: {info['belt_len']} × 12cm 직사각형 1장 (시접 1cm 포함 치수, 반 접어 완성 폭 5cm, 끝은 '벨트 끝 본')",
+              "벨트고리: 6 × 6cm 4장 (시접 포함, 허리 옆선용)  ·  소매 버클 2개, 벨트 버클 1개",
+              "단추: 앞 2.3cm 10개 (패턴 표시) + 안쪽 여밈 단추 1개, 1.6cm 4개 (견장 2 · 목 여밈 탭 2)",
               "안감: 앞판·뒤판·윗소매·밑소매 본 사용 (안단 폭만큼 앞판 안감 제외, 뒤중심 주름 2cm 추가)"]
     for i, s in enumerate(items):
         c.drawString(1.5 * cm, y - (i + 1) * 11.5, s)

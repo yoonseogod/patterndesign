@@ -26,12 +26,13 @@
 `generate_trench.py`의 `SIZES` 표를 수정한 뒤 실행합니다.
 
 ```bash
-pip install reportlab shapely
+pip install reportlab shapely matplotlib numpy pdfplumber pillow
 python3 generate_trench.py          # 전체 사이즈
 python3 generate_trench.py 100      # 100만
 python3 generate_trench.py --sa     # 시접 포함 버전 (_withSA)
 python3 verify_fit.py 100           # 봉제선·여유분 검증 + 3D 그림 (verify/)
 python3 audit_pdf.py 100            # PDF 검사: 실제 크기, 이어 붙이기, 글자 겹침 등 14항목
+python3 review_draft.py 100         # 제도 검토: 이음점 각도, 소매·진동 노치 맞춤, 오그림 배분
 ```
 
 폰트: 나눔고딕 (SIL Open Font License).
