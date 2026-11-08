@@ -38,6 +38,7 @@ SIZES = {
 SA = 1.0        # 기본 시접
 HEM = 4.0       # 몸판 밑단 시접
 SLEEVE_HEM = 4.0
+FUSE_HEM = 5.0  # 소매 밑단 심지 폭
 
 # ── 기하 도우미 ───────────────────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ def lerp(a, b, t):
 
 class Piece:
     def __init__(self, key, name, cut, outline, sa=SA, fold_x=None, hem=None,
-                 grain=None, lines=(), dots=(), notches=(), texts=(), fold_label=None):
+                 grain=None, lines=(), dots=(), notches=(), texts=(), fold_label=None, fuse=None):
         self.key, self.name, self.cut_txt = key, name, cut
         self.outline = outline
         self.sa = sa
@@ -137,6 +138,7 @@ class Piece:
         self.notches = list(notches)  # (x, y)
         self.texts = list(texts)      # (x, y, 문자열, 크기)
         self.fold_label = fold_label
+        self.fuse = fuse              # 심지: "all" = 조각 전체, "hem" = 밑단 5cm
         self.build_cut()
 
     def build_cut(self):
@@ -158,6 +160,16 @@ class Piece:
         self.poly = poly
         self.cut = cut
         self.cut_pts = list(cut.exterior.coords)
+        self.fuse_poly = None
+        if self.fuse == "all":
+            self.fuse_poly = cut
+        elif self.fuse == "hem" and self.hem:
+            hp, depth = self.hem
+            up = FUSE_HEM - depth      # 밑단 시접 끝에서 위로 5cm
+            band = Polygon([(p[0], p[1] - up) for p in hp] +
+                           [(p[0], p[1] + depth + 0.01) for p in reversed(hp)]).buffer(self.sa + 0.5, join_style=2)
+            band = band.intersection(box(-1e4, min(p[1] for p in hp) - up, 1e4, 1e4))
+            self.fuse_poly = band.intersection(cut)
 
     def bounds(self):
         return self.cut.bounds
@@ -284,7 +296,7 @@ def draft(size):
     inner = bez((Wh - 4, scye), (Wh - 4, scye - 8), (q[0] + 0.5, q[1] + 6), q)
     facing_outline = join([q, f_snp], front_neck, front_edge[1:], [(Wh + DB, y_L), (Wh - 4, y_L)], inner)
     piece_list.append(Piece(
-        "facing", "앞 안단", "겉감 2장 + 심지 2장", facing_outline,
+        "facing", "앞 안단", "겉감 2장 + 심지 2장 (전체)", facing_outline, fuse="all",
         hem=([(Wh - 4, y_L), (Wh + DB, y_L)], HEM), grain=((Wh + 3, 35), (Wh + 3, 85)),
         lines=[([(Wh, fnd), (Wh, y_L)], "dashdot", "CF")],
         dots=[(x, y, r) for x, y, r in btn if x > Wh - 4.5],
@@ -347,7 +359,7 @@ def draft(size):
     top_hem = [tf1, tb1]
     gx = (tf0[0] + tb0[0]) / 2 + 1
     piece_list.append(Piece(
-        "topsleeve", "윗소매", "겉감 2장 · 안감 2장", top_outline, hem=(top_hem, SLEEVE_HEM),
+        "topsleeve", "윗소매", "겉감 2장 · 안감 2장 · 밑단 심지 5cm", top_outline, hem=(top_hem, SLEEVE_HEM), fuse="hem",
         grain=((gx, CH + 4), (gx, SLg - 8)),
         lines=[([(tf0[0] + 1, y_e), (tb0[0] - 0.5, y_e)], "dash", "팔꿈치선"),
                ([(tf1[0], SLg - 6), (tb1[0], SLg - 6)], "dot", "소매 스트랩 위치")],
@@ -371,7 +383,7 @@ def draft(size):
     ub = under_poly.bounds
     hem_r, hem_l = (wb + eb, SLg), rot((under_f0[0] + B, SLg), (B, CH), ang)
     piece_list.append(Piece(
-        "undersleeve", "밑소매", "겉감 2장 · 안감 2장", under_outline,
+        "undersleeve", "밑소매", "겉감 2장 · 안감 2장 · 밑단 심지 5cm", under_outline, fuse="hem",
         hem=([hem_r, hem_l] if hem_r[0] < hem_l[0] else [hem_l, hem_r], SLEEVE_HEM),
         grain=(((ub[0] + ub[2]) / 2, CH + 6), ((ub[0] + ub[2]) / 2, SLg - 8)),
         lines=[([(B, CH), lerp((B, CH), (xc + wW / 2, SLg), 1.0)], "dot", "소매 밑선 (이어진 선)")],
@@ -385,7 +397,7 @@ def draft(size):
     stand_top = catmull([(0, -4.0), (Lc * 0.5, -3.95), (Lc - 0.5, -4.1)])
     stand_outline = join(stand_bot, [(Lc + 0.3, -2.6)], list(reversed(stand_top)))
     piece_list.append(Piece(
-        "stand", "칼라 스탠드", "겉감 2장 + 심지 1장 (골선)", stand_outline, fold_x=0,
+        "stand", "칼라 스탠드", "겉감 2장 + 심지 2장 (골선)", stand_outline, fold_x=0, fuse="all",
         grain=((2, -2), (Lc - 6, -2)), fold_label="CB 골선",
         notches=[(plen(back_neck), y_at_x(stand_bot, plen(back_neck)))],
         texts=[(4, -1.2, f"칼라 스탠드 STAND · {size}", 0.55)]))
@@ -393,7 +405,7 @@ def draft(size):
     fall_top = catmull([(0, -7.5), (Lc * 0.6, -7.7), (Lc + 3.0, -8.6)])
     fall_outline = join(fall_bot, list(reversed(fall_top)))
     piece_list.append(Piece(
-        "collar", "칼라", "겉감 2장 + 심지 1장 (골선)", fall_outline, fold_x=0,
+        "collar", "칼라", "겉감 2장 + 심지 2장 (골선)", fall_outline, fold_x=0, fuse="all",
         grain=((2, -3.5), (Lc - 4, -3.5)), fold_label="CB 골선",
         notches=[(plen(back_neck), y_at_x(fall_bot, plen(back_neck)))],
         texts=[(4, -5.6, "칼라 COLLAR", 0.8), (4, -4.2, f"사이즈 {size}", 0.55)]))
@@ -412,7 +424,7 @@ def draft(size):
                             dots=[(3.5, 2.5, 0.7), (12.5, 2.5, 0.7)],
                             texts=[(5, 1.6, "목 여밈 탭", 0.5), (5, 4.0, size, 0.45)]))
     welt = [(0, 0), (18, 0), (18, 9), (0, 9)]
-    piece_list.append(Piece("welt", "주머니 웰트", "겉감 2장 + 심지 2장", welt, grain=((9, 1), (9, 8)),
+    piece_list.append(Piece("welt", "주머니 웰트", "겉감 2장", welt, grain=((9, 1), (9, 8)),
                             lines=[([(0, 4.5), (18, 4.5)], "dot", "접는 선")],
                             texts=[(1.5, 2.8, "주머니 웰트 WELT", 0.6), (1.5, 7.2, f"사이즈 {size}", 0.5)]))
     bag = join([(0, 0), (20, 0)], bez((20, 0), (20, 22), (20, 30), (12, 30)), bez((12, 30), (2, 30), (0, 26), (0, 18)))
@@ -503,12 +515,37 @@ def arrow_line(c, a, b, head=0.8):
             c.line(e[0], e[1], q[0], q[1])
 
 
+def draw_fuse(c, p):
+    """심지 붙이는 곳: 주황 빗금."""
+    geoms = getattr(p.fuse_poly, "geoms", [p.fuse_poly])
+    minx, miny, maxx, maxy = p.fuse_poly.bounds
+    for g in geoms:
+        if g.geom_type != "Polygon" or g.area < 0.5:
+            continue
+        c.saveState()
+        c.clipPath(poly_path(c, list(g.exterior.coords)), stroke=0, fill=0)
+        c.setStrokeColorRGB(0.93, 0.55, 0.2)
+        lw(c, 0.5)
+        k = minx - (maxy - miny)
+        while k < maxx:
+            c.line(k, maxy, k + (maxy - miny), miny)
+            k += 0.7
+        c.restoreState()
+        gx, gy = g.representative_point().x, g.representative_point().y
+        c.setFillColorRGB(1, 1, 1)
+        c.rect(gx - 0.9, gy - 0.45, 1.8, 0.6, stroke=0, fill=1)
+        c.setFillColorRGB(0.8, 0.4, 0.1)
+        text(c, gx, gy, "심지", 0.45, "KRB", anchor="center")
+
+
 def draw_piece(c, p):
     # 재단선
     c.setFillColorRGB(0.965, 0.955, 0.93)
     c.setStrokeColorRGB(0, 0, 0)
     lw(c, 1.0)
     c.drawPath(poly_path(c, p.cut_pts), stroke=1, fill=1)
+    if p.fuse_poly is not None and not p.fuse_poly.is_empty:
+        draw_fuse(c, p)
     # 완성선
     c.setStrokeColorRGB(0.25, 0.25, 0.25)
     lw(c, 0.5)
@@ -573,10 +610,10 @@ def draw_piece(c, p):
     c.setFillColorRGB(0, 0, 0)
     for i, (x, y, s, z) in enumerate(p.texts):
         text(c, x, y, s, z, "KRB" if i == 0 else "KR")
-    tx, ty, _, z = p.texts[0]
-    text(c, tx, ty + z * 0.9 + (p.texts[1][3] * 1.3 if len(p.texts) > 1 else 0) +
-         (p.texts[2][3] * 1.3 if len(p.texts) > 2 and p.key in ("front", "back") else 0) + 0.2,
-         f"재단: {p.cut_txt}", 0.45)
+    tx = p.texts[0][0]
+    block = [t for t in p.texts[:3] if abs(t[0] - tx) < 1e-6]
+    y_last = max(t[1] for t in block)
+    text(c, tx, y_last + 0.8, f"재단: {p.cut_txt}", 0.45)
 
 
 def draw_grid(c, W, H):
@@ -648,7 +685,8 @@ def cover_page(c, size, info, pieces, rows, used):
     c.setFont("KR", 8.6)
     legend = ["굵은 실선 = 재단선 (시접 포함: 기본 1cm, 몸판·소매 밑단 4cm)",
               "점선 = 완성선(박음선) · 짧은 눈금 = 맞춤 표시(노치) · 양방향 화살표 = 식서(올) 방향",
-              "빨간 굵은 선 = 골선 (원단을 접어서 재단, 시접 없음) · 원 = 단추 위치"]
+              "빨간 굵은 선 = 골선 (원단을 접어서 재단, 시접 없음) · 원 = 단추 위치",
+              "주황 빗금 = 심지 붙이는 곳: 칼라 · 칼라 스탠드 · 앞 안단(전체), 윗소매 · 밑소매(밑단 5cm)"]
     for i, s in enumerate(legend):
         c.drawString(1.5 * cm, y - (i + 1) * 12.5, s)
     test_square(c, 1.5 * cm, 1.5 * cm, 10, "10 × 10 cm")
@@ -660,7 +698,7 @@ def cover_page(c, size, info, pieces, rows, used):
     c.drawString(1.5 * cm, y, "재단 목록")
     c.setFont("KR", 8.2)
     items = [f"{p.name}: {p.cut_txt}" for p in pieces if p.key != "belttip"]
-    items += [f"벨트: {info['belt_len']} × 12cm 직사각형 1장 (반 접어 완성 폭 5cm, 끝은 '벨트 끝 본' 참조) + 심지",
+    items += [f"벨트: {info['belt_len']} × 12cm 직사각형 1장 (반 접어 완성 폭 5cm, 끝은 '벨트 끝 본' 참조)",
               "벨트고리: 6 × 6cm 4장 (허리 옆선용)  ·  소매 버클 2개, 벨트 버클 1개",
               "단추: 앞 2.3cm 10개 + 안쪽 단추 1개, 견장·탭용 1.6cm 6개",
               "안감: 앞판·뒤판·윗소매·밑소매 본 사용 (안단 폭만큼 앞판 안감 제외, 뒤중심 주름 2cm 추가)"]
