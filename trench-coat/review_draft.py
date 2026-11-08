@@ -115,10 +115,14 @@ def main(size):
     b_fwd, b_back = cap_dirs(tb[0])
     junction("소매 뒷솔기 위: 소매산이 꺾이지 않음",
              (direction(tb, True), b_back), None, (direction(ub, True), b_fwd), None)
+    tw, uw = S["top_wrist"], S["under_wrist"]          # 윗: 앞→뒤, 밑: 앞(돌린 쪽)→뒤
+    ufr = S["under_front_rot"]                          # 밑소매 앞솔기 (실제 조각 위치)
     junction("소매 앞솔기 밑단: 밑단이 꺾이지 않음",
-             (direction(tf, False), (1, 0)), None, (direction(uf, False), (-1, 0)), None)
+             (direction(tf, False), direction(tw, True)), None,
+             (direction(ufr, False), direction(uw, True)), None)
     junction("소매 뒷솔기 밑단: 밑단이 꺾이지 않음",
-             (direction(tb, False), (-1, 0)), None, (direction(ub, False), (1, 0)), None)
+             (direction(tb, False), direction(tw, False)), None,
+             (direction(ub, False), direction(uw, False)), None)
 
     # 노치 짝 맞춤
     notch = []

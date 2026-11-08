@@ -9,7 +9,7 @@
 
 심지 붙이는 곳(패턴에 주황 빗금으로 표시): 칼라, 칼라 스탠드(칼라밴드), 앞 안단 전체, 윗소매·밑소매 밑단 5cm.
 
-| 사이즈 | 가슴둘레 | 키 | 완성 가슴둘레 | 옷길이 | A4 파일 | 복사실용 1장 |
+| 사이즈 | 가슴둘레 | 키 | 완성 가슴둘레 | 옷길이 | A4 파일 | 복사실용 1장 (폭 76cm) |
 |---|---|---|---|---|---|---|
 | 95  | 94  | 170 | 118 | 98  | `pdf/trench_men_95_A4.pdf`  | `pdf/trench_men_95_fullsize.pdf` |
 | 100 | 98  | 175 | 122 | 101 | `pdf/trench_men_100_A4.pdf` | `pdf/trench_men_100_fullsize.pdf` |
@@ -22,6 +22,9 @@
 3. 2쪽 배치도를 보고 A1, B1 … 순서로 이어 붙이기 (빈 칸은 인쇄 안 함).
 4. 각 장의 회색 테두리선에서 왼쪽·위쪽 여백을 잘라 이웃 장에 겹쳐 붙이기.
 
+복사실용 1장 PDF는 폭 76cm라 A0 폭(84cm)이나 36인치 롤 용지에 그대로 출력할 수 있습니다.
+뒤트임 길이는 모든 사이즈에서 38cm로 같습니다.
+
 ## 다시 만들기 / 치수 바꾸기
 `generate_trench.py`의 `SIZES` 표를 수정한 뒤 실행합니다.
 
@@ -31,8 +34,9 @@ python3 generate_trench.py          # 전체 사이즈
 python3 generate_trench.py 100      # 100만
 python3 generate_trench.py --sa     # 시접 포함 버전 (_withSA)
 python3 verify_fit.py 100           # 봉제선·여유분 검증 + 3D 그림 (verify/)
-python3 audit_pdf.py 100            # PDF 검사: 실제 크기, 이어 붙이기, 글자 겹침 등 14항목
+python3 audit_pdf.py 100 [--sa]     # PDF 검사: 실제 크기, 이어 붙이기, 글자 겹침 등 16항목
 python3 review_draft.py 100         # 제도 검토: 이음점 각도, 소매·진동 노치 맞춤, 오그림 배분
+python3 review_grading.py           # 사이즈 간 검토: 치수 증가 간격, 겹쳐 보기 (verify/grading_nest.png)
 ```
 
 폰트: 나눔고딕 (SIL Open Font License).

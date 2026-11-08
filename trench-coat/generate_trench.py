@@ -454,15 +454,14 @@ def draft(size):
                (tf0[0] + 2.5, CH + 15.7, f"사이즈 {size}", 0.6),
                (p_sh[0] - 1, p_sh[1] + 2.2, "어깨점", 0.5)]))
 
-    # 밑소매: 소매 양쪽 겨드랑이 부분을 이어 붙임
-    R = Polygon(join(sub_by_x(capc, bq + eb, B), [(xc + wW / 2, SLg), (wb + eb, SLg), tb0]))
-    L = join([(0, CH)], sub_by_x(capc, 0, fq - ef), [under_f0, under_f1])
-    L = [(p[0] + B, p[1]) for p in L]
-    L = [rot(p, (B, CH), ang) for p in L]
-    under_poly = unary_union([R.buffer(0.02), Polygon(L).buffer(0.02)]).buffer(-0.02)
-    under_outline = list(under_poly.exterior.coords)
+    # 밑소매: 소매 양쪽 겨드랑이 부분을 겨드랑이점에서 돌려 이어 붙이고, 밑단은 한 직선으로
+    tr = lambda p: rot((p[0] + B, p[1]), (B, CH), ang)
+    cap_back = sub_by_x(capc, bq + eb, B)                 # tb0 → 겨드랑이
+    cap_front = [tr(p) for p in sub_by_x(capc, 0, fq - ef)]  # 겨드랑이 → 앞솔기 위
+    hem_r, hem_l = (wb + eb, SLg), tr(under_f0)
+    under_outline = join(cap_back, cap_front, [hem_l, hem_r], [tb0])
+    under_poly = Polygon(under_outline)
     ub = under_poly.bounds
-    hem_r, hem_l = (wb + eb, SLg), rot((under_f0[0] + B, SLg), (B, CH), ang)
     piece_list.append(Piece(
         "undersleeve", "밑소매", "겉감 2장 · 안감 2장 · 밑단 심지 5cm", under_outline, fuse="hem",
         hem=([hem_r, hem_l] if hem_r[0] < hem_l[0] else [hem_l, hem_r], SLEEVE_HEM),
@@ -562,7 +561,7 @@ def draft(size):
         under_front=[tf0, (wf - ef, SLg)], under_back=[tb0, (wb + eb, SLg)],
         stand_bot=stand_bot, stand_top=stand_top, fall_bot=fall_bot,
         facing_edge=front_edge, shield_neck=back_neck,
-        top_wrist=[tf1, tb1], under_wrist=[(xc - wW / 2, SLg), (wf - ef, SLg), None, (wb + eb, SLg), (xc + wW / 2, SLg)],
+        top_wrist=[tf1, tb1], under_wrist=[hem_l, hem_r], under_front_rot=[tr(tf0), hem_l],
     )
     info.update(dict(sleeve_notch_arcs=dict(shoulder=s_shoulder, front=s_front, back1=s_back1, back2=s_back2),
                      arm_notch_from_side=dict(front=fa_len - plen(front_arm1), back1=ba_len - plen(back_arm1),
@@ -622,7 +621,7 @@ def _pack(pieces, cols, keyf, step=0.5):
     return offsets, rows
 
 
-def layout(pieces):
+def layout(pieces, col_options=(4, 5, 6)):
     """여러 배치(열 수 4~6 × 정렬 순서 4가지)를 시험해 인쇄할 A4 장수가 가장 적은 것을 고른다."""
     global COLS
     from shapely import affinity
@@ -630,7 +629,7 @@ def layout(pieces):
     keys = [area, lambda p: -(p.bounds()[3] - p.bounds()[1]), lambda p: -(p.bounds()[2] - p.bounds()[0]),
             lambda p: -p.cut.area]
     best = None
-    for cols in (4, 5, 6):
+    for cols in col_options:
         for keyf in keys:
             r = _pack(pieces, cols, keyf)
             if r is None:
@@ -1111,7 +1110,10 @@ def build(size):
         tile_page(c, pieces, ci, ri, rows, size)
     c.save()
 
-    # 복사실용 한 장짜리
+    # 복사실용 한 장짜리: 대형 출력 용지(A0 폭 84cm, 36인치 롤 91cm)에 들어가게 폭 76cm(4열)로 따로 배치
+    a4_cols, a4_rows = COLS, rows
+    pieces, info = draft(size)
+    rows = layout(pieces, col_options=(4,))
     W, H = COLS * TILE_W, rows * TILE_H
     full = os.path.join(OUT_DIR, f"trench_men_{size}_fullsize{sfx}.pdf")
     c = canvas.Canvas(full, pagesize=(W * cm, H * cm))
@@ -1124,7 +1126,7 @@ def build(size):
         draw_piece(c, p)
     c.restoreState()
     c.save()
-    print(f"{size}: A4 {len(used) + 2}쪽 (안내 2쪽 포함) · 전체 {W:.0f}×{H:.0f}cm · "
+    print(f"{size}: A4 {len(used) + 2}쪽 (안내 2쪽 포함) · 한 장짜리 {W:.0f}×{H:.0f}cm · "
           f"진동둘레 {info['AH']:.1f} · 소매산 {info['CH']:.1f} · 칼라길이 {info['Lc']:.1f}")
     return path
 

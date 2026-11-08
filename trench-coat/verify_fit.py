@@ -43,8 +43,7 @@ def seam_checks(info):
     S = info["seams"]
     L = lambda k: plen(S[k])
     neck_line = L("back_neck") + L("front_neck") + L("neck_ext")
-    under_wrist = (math.dist(S["under_wrist"][0], S["under_wrist"][1]) +
-                   math.dist(S["under_wrist"][3], S["under_wrist"][4]))
+    under_wrist = math.dist(S["under_wrist"][0], S["under_wrist"][1])
     rows = [
         # 이름, A, B, 목표 차이(A-B) 범위, 설명
         ("어깨선 (뒤 − 앞)", L("back_shoulder"), L("front_shoulder"), (0.3, 1.0), "뒤 어깨에 오그림 여유 0.3~1cm"),

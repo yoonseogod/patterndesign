@@ -16,9 +16,14 @@ TC = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TC)
 import generate_trench as G  # noqa: E402
 
-size = sys.argv[1] if len(sys.argv) > 1 else "100"
-A4 = f"{TC}/pdf/trench_men_{size}_A4.pdf"
-FULL = f"{TC}/pdf/trench_men_{size}_fullsize.pdf"
+args = [x for x in sys.argv[1:] if x != "--sa"]
+SA_MODE = "--sa" in sys.argv
+if SA_MODE:
+    G.NET = False                       # 시접 포함 버전 검사
+size = args[0] if args else "100"
+sfx = "_withSA" if SA_MODE else ""
+A4 = f"{TC}/pdf/trench_men_{size}_A4{sfx}.pdf"
+FULL = f"{TC}/pdf/trench_men_{size}_fullsize{sfx}.pdf"
 results = []
 
 
@@ -58,16 +63,27 @@ with pdfplumber.open(A4) as pdf:
 dpi = 50.8  # 1cm = 20px
 px = 20
 tmp = tempfile.mkdtemp()
-subprocess.run(["pdftoppm", "-r", str(dpi), "-gray", "-png", FULL, f"{tmp}/full"], check=True)
+# 기준 그림: A4와 같은 배치를 잘라 붙이지 않고 한 장에 그대로 그린 것
+from reportlab.pdfgen import canvas as _cv
+from reportlab.lib.units import cm as _cm
+REF = f"{tmp}/ref.pdf"
+_W, _H = G.COLS * G.TILE_W, rows * G.TILE_H
+_c = _cv.Canvas(REF, pagesize=(_W * _cm, _H * _cm))
+_c.translate(0, _H * _cm); _c.scale(_cm, -_cm)
+G.draw_grid(_c, _W, _H)
+for _p in pieces:
+    G.draw_piece(_c, _p)
+_c.save()
+subprocess.run(["pdftoppm", "-r", str(dpi), "-gray", "-png", REF, f"{tmp}/full"], check=True)
 subprocess.run(["pdftoppm", "-r", str(dpi), "-gray", "-png", "-f", "3", A4, f"{tmp}/t"], check=True)
-full = np.array(Image.open([f"{tmp}/{f}" for f in os.listdir(tmp) if f.startswith("full")][0])).astype(int)
+full = np.array(Image.open([f"{tmp}/{f}" for f in os.listdir(tmp) if f.startswith("full")][0]).convert("L")).astype(int)
 tiles = sorted(f for f in os.listdir(tmp) if f.startswith("t-"))
 TW, TH = int(G.TILE_W * px), int(G.TILE_H * px)
 M = int(G.MARGIN * px)
 worst = 0
 bad_tiles = []
 for (ci, ri), f in zip(used, tiles):
-    t = np.array(Image.open(f"{tmp}/{f}")).astype(int)
+    t = np.array(Image.open(f"{tmp}/{f}").convert("L")).astype(int)
     crop = t[M:M + TH, M:M + TW]
     ref = full[ri * TH:(ri + 1) * TH, ci * TW:(ci + 1) * TW]
     h, w = min(crop.shape[0], ref.shape[0]), min(crop.shape[1], ref.shape[1])
@@ -81,7 +97,7 @@ for (ci, ri), f in zip(used, tiles):
     worst = max(worst, frac)
     if frac > 0.002:
         bad_tiles.append((G.tile_name(ci, ri), round(frac * 100, 2)))
-check("A4 장을 이어 붙인 그림 = 전체 1장 그림 (픽셀 비교)", not bad_tiles,
+check("A4 장을 이어 붙인 그림 = 같은 배치를 한 장에 그린 그림 (픽셀 비교)", not bad_tiles,
       f"가장 큰 차이 {worst * 100:.3f}% 픽셀" + (f", 문제 칸 {bad_tiles}" if bad_tiles else ""))
 
 # 3. 인쇄 안 하는 칸이 정말 비었는지
@@ -149,6 +165,16 @@ pairs = [("어깨 앞/뒤", ("front", 0), ("back", 1)), ("옆선 앞/뒤", ("fro
          ("소매 밑단 윗/밑", ("topsleeve", 3), ("undersleeve", 3))]
 mis = [n for n, a, b in pairs if SAv[a[0]][a[1]] != SAv[b[0]][b[1]]]
 check(f"꿰매는 짝 {len(pairs)}쌍의 시접 폭이 서로 같음", not mis, ", ".join(mis))
+
+# 복사실용 한 장짜리 PDF
+with pdfplumber.open(FULL) as pdf:
+    pg = pdf.pages[0]
+    wcm = pg.width / 28.3465
+    txt = pg.extract_text() or ""
+names_ok = all(p.texts[0][2].split()[0] in txt.replace(" ", "") or p.texts[0][2].replace(" ", "") in txt.replace(" ", "")
+               for p in pieces)
+check("한 장짜리 PDF 폭 ≤ 84cm (A0 폭 · 36인치 롤에 들어감)", wcm <= 84.1, f"폭 {wcm:.1f}cm")
+check(f"한 장짜리 PDF에 조각 {len(pieces)}개 이름이 모두 있음", names_ok)
 
 # 6. 글자 겹침 (전체 1장 PDF의 글자 상자)
 with pdfplumber.open(FULL) as pdf:
