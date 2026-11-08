@@ -31,6 +31,7 @@ python3 generate_trench.py          # 전체 사이즈
 python3 generate_trench.py 100      # 100만
 python3 generate_trench.py --sa     # 시접 포함 버전 (_withSA)
 python3 verify_fit.py 100           # 봉제선·여유분 검증 + 3D 그림 (verify/)
+python3 audit_pdf.py 100            # PDF 검사: 실제 크기, 이어 붙이기, 글자 겹침 등 14항목
 ```
 
 폰트: 나눔고딕 (SIL Open Font License).

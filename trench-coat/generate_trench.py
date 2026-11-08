@@ -16,6 +16,7 @@ import sys
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from shapely.geometry import LineString, Point, Polygon, box
@@ -302,12 +303,12 @@ def draft(size):
     facing_outline = join([q, f_snp], front_neck, front_edge[1:], [(Wh + DB, y_L), (Wh - 4, y_L)], inner)
     piece_list.append(Piece(
         "facing", "앞 안단", "겉감 2장 + 심지 2장 (전체)", facing_outline, fuse="all",
-        hem=([(Wh - 4, y_L), (Wh + DB, y_L)], HEM), grain=((Wh + 3, 35), (Wh + 3, 85)),
+        hem=([(Wh - 4, y_L), (Wh + DB, y_L)], HEM), grain=((Wh + 8.6, y_w + 12), (Wh + 8.6, y_L - 8)),
         lines=[([(Wh, fnd), (Wh, y_L)], "dashdot", "CF")],
         dots=[(x, y, r) for x, y, r in btn if x > Wh - 4.5],
         notches=[ce],
-        texts=[(Wh - 3, y_w + 12, "앞 안단", 1.1), (Wh - 3, y_w + 14, "FACING", 0.6),
-               (Wh - 3, y_w + 15.7, f"사이즈 {size}", 0.6)]))
+        texts=[(Wh + 0.5, y_w + 14, "앞 안단", 1.1), (Wh + 0.5, y_w + 16, "FACING", 0.6),
+               (Wh + 0.5, y_w + 17.7, f"사이즈 {size}", 0.6)]))
 
     # 건 플랩 (오른쪽 앞)
     arm_part, _ = cut_until(front_arm_out, lambda p: p[1] >= yg)
@@ -317,7 +318,7 @@ def draft(size):
                        [(Wh - 3.2, (yg + 2 + neck_pts[-1][1]) / 2)], list(reversed(neck_pts)))
     piece_list.append(Piece(
         "gunflap", "건 플랩", "겉감 2장 (오른쪽 1벌)", gun_outline,
-        grain=((sp_f[0] + 9, 3), (sp_f[0] + 9, yg - 2)),
+        grain=((Wh - 6.5, y_at_x(front_neck, Wh - 6.5) + 1.5), (Wh - 6.5, yg - 0.5)),
         texts=[(sp_f[0] + 4.5, yg - 5, "건 플랩 GUN FLAP", 0.8), (sp_f[0] + 4.5, yg - 3.6, f"사이즈 {size}", 0.55)]))
 
     # 뒤 스톰실드 (골선)
@@ -391,7 +392,6 @@ def draft(size):
         "undersleeve", "밑소매", "겉감 2장 · 안감 2장 · 밑단 심지 5cm", under_outline, fuse="hem",
         hem=([hem_r, hem_l] if hem_r[0] < hem_l[0] else [hem_l, hem_r], SLEEVE_HEM),
         grain=(((ub[0] + ub[2]) / 2, CH + 6), ((ub[0] + ub[2]) / 2, SLg - 8)),
-        lines=[([(B, CH), lerp((B, CH), (xc + wW / 2, SLg), 1.0)], "dot", "소매 밑선 (이어진 선)")],
         notches=[(bq + eb + 0.2, y_at_x(capc, bq + eb + 0.2))],
         texts=[(ub[0] + 3, CH + 14, "밑소매", 1.1), (ub[0] + 3, CH + 16, "UNDER SLEEVE", 0.55),
                (ub[0] + 3, CH + 17.5, f"사이즈 {size}", 0.55)]))
@@ -403,15 +403,15 @@ def draft(size):
     stand_outline = join(stand_bot, [(Lc + 0.3, -2.6)], list(reversed(stand_top)))
     piece_list.append(Piece(
         "stand", "칼라 스탠드", "겉감 2장 + 심지 2장 (골선)", stand_outline, fold_x=0, fuse="all",
-        grain=((2, -2), (Lc - 6, -2)), fold_label="CB 골선",
+        grain=((Lc * 0.62, -2.1), (Lc - 2.5, -2.1)), fold_label="CB 골선",
         notches=[(plen(back_neck), y_at_x(stand_bot, plen(back_neck)))],
-        texts=[(4, -1.2, f"칼라 스탠드 STAND · {size}", 0.55)]))
+        texts=[(2.2, -2.4, f"칼라 스탠드 STAND · {size}", 0.5)]))
     fall_bot = catmull([(0, 0), (Lc * 0.5, 0.3), (Lc - 0.3, 1.5)])
     fall_top = catmull([(0, -7.5), (Lc * 0.6, -7.7), (Lc + 3.0, -8.6)])
     fall_outline = join(fall_bot, list(reversed(fall_top)))
     piece_list.append(Piece(
         "collar", "칼라", "겉감 2장 + 심지 2장 (골선)", fall_outline, fold_x=0, fuse="all",
-        grain=((2, -3.5), (Lc - 4, -3.5)), fold_label="CB 골선",
+        grain=((2, -1.7), (Lc - 4, -1.7)), fold_label="CB 골선",
         notches=[(plen(back_neck), y_at_x(fall_bot, plen(back_neck)))],
         texts=[(4, -5.6, "칼라 COLLAR", 0.8), (4, -4.2, f"사이즈 {size}", 0.55)]))
 
@@ -429,7 +429,7 @@ def draft(size):
                             dots=[(3.5, 2.5, 0.7), (12.5, 2.5, 0.7)],
                             texts=[(5, 1.6, "목 여밈 탭", 0.5), (5, 4.0, size, 0.45)]))
     welt = [(0, 0), (18, 0), (18, 9), (0, 9)]
-    piece_list.append(Piece("welt", "주머니 웰트", "겉감 2장", welt, grain=((9, 1), (9, 8)),
+    piece_list.append(Piece("welt", "주머니 웰트", "겉감 2장", welt, grain=((15, 1), (15, 8)),
                             lines=[([(0, 4.5), (18, 4.5)], "dot", "접는 선")],
                             texts=[(1.5, 2.8, "주머니 웰트 WELT", 0.6), (1.5, 7.2, f"사이즈 {size}", 0.5)]))
     bag = join([(0, 0), (20, 0)], bez((20, 0), (20, 22), (20, 30), (12, 30)), bez((12, 30), (2, 30), (0, 26), (0, 18)))
@@ -456,14 +456,14 @@ def draft(size):
         "gunflap": [(lerp(f_snp, sp_f, 0.5), SA), (mid(arm_part), SA), (lerp(g1, (g1[0] + 8, yg + 3.0), 0.5), SA),
                     (((g1[0] + 8 + Wh - 4) / 2, yg + 2.5), SA), (mid(neck_pts), SA)],
         "shield": [(mid(back_neck), SA), (lerp((bnw, 0), sp_b, 0.5), SA), (mid(bs_arm), SA), (mid(shield_hem), SA)],
-        "topsleeve": [((fq + 2, y_at_x(capc, fq + 2)), SA), (lerp(tb0, tb1, 0.5), SA), (mid(front_seam), SA),
+        "topsleeve": [((fq + 2, y_at_x(capc, fq + 2)), SA), (lerp(tb0, tb1, 0.5), SA), (front_seam[len(front_seam) // 4], SA),
                       (lerp(tf1, tb1, 0.5), f"밑단 시접 {SLEEVE_HEM:g}cm")],
         "undersleeve": [(mid(sub_by_x(capc, bq + eb, B)), SA), (lerp(tb0, (wb + eb, SLg), 0.5), SA),
                         (rot(lerp((fq - ef + B, y_at_x(capc, fq - ef)), (wf - ef + B, SLg), 0.5), (B, CH), ang), SA),
                         (lerp(hem_r, hem_l, 0.5), f"밑단 시접 {SLEEVE_HEM:g}cm")],
         "stand": [(mid(stand_bot), SA), (mid(stand_top), SA), ((Lc + 0.25, -2.4), SA)],
         "collar": [(mid(fall_bot), SA), (mid(fall_top), SA), (lerp((Lc - 0.3, 1.5), (Lc + 3.0, -8.6), 0.5), SA)],
-        "epaulette": [(((sh_len_f - 1.5) / 2, 4.75), "사방 시접 1cm")],
+        "epaulette": [(((sh_len_f - 1.5) * 0.6, 0.3), "사방 시접 1cm")],
         "cuffstrap": [((sl_strap_len / 2, 0), "사방 시접 1cm")],
         "latch": [((8, 0), "사방 1cm")],
         "welt": [((9, 9), "사방 시접 1cm")],
@@ -566,6 +566,39 @@ def arrow_line(c, a, b, head=0.8):
             c.line(e[0], e[1], q[0], q[1])
 
 
+def fuse_label_spot(p, g):
+    """'심지' 글자 자리: 테두리·시접 글자·조각 글자·식서선에서 가장 먼 점."""
+    avoid = [LineString(p.outline + [p.outline[0]])]
+    line = avoid[0]
+    for pt, _ in p.sa_marks:
+        b = line.interpolate(line.project(Point(pt)))
+        avoid.append(Point(b.x, b.y).buffer(2.4))
+    for x, y, s_, z in p.texts:
+        avoid.append(LineString([(x, y), (x + len(s_) * z * 0.7, y)]).buffer(z))
+    for x, y, z in [(t[0], t[1], 0.45) for t in p.texts[:1]]:
+        avoid.append(LineString([(x, y + 1.5), (x + 12, y + 1.5)]).buffer(0.6))  # 재단 줄
+    if p.grain:
+        avoid.append(LineString(p.grain).buffer(0.4))
+    minx, miny, maxx, maxy = g.bounds
+    for shrink in (0.6, 0.3, 0.1):
+        inner = g.buffer(-shrink)
+        best, spot = -1, None
+        y = miny + 0.1
+        while y < maxy:
+            x = minx + 0.2
+            while x < maxx:
+                q = Point(x, y)
+                if inner.contains(q):
+                    d = min(a.distance(q) for a in avoid[1:]) if len(avoid) > 1 else 9
+                    if d > best:
+                        best, spot = d, (x, y)
+                x += 0.4
+            y += 0.2
+        if spot:
+            return spot
+    return g.representative_point().coords[0]
+
+
 def draw_fuse(c, p):
     """심지 붙이는 곳: 주황 빗금."""
     geoms = getattr(p.fuse_poly, "geoms", [p.fuse_poly])
@@ -582,7 +615,7 @@ def draw_fuse(c, p):
             c.line(k, maxy, k + (maxy - miny), miny)
             k += 0.7
         c.restoreState()
-        gx, gy = g.representative_point().x, g.representative_point().y
+        gx, gy = fuse_label_spot(p, g)
         c.setFillColorRGB(1, 1, 1)
         c.rect(gx - 0.9, gy - 0.45, 1.8, 0.6, stroke=0, fill=1)
         c.setFillColorRGB(0.8, 0.4, 0.1)
@@ -612,6 +645,65 @@ def draw_sa_marks(c, p):
         y = base.y + ny * 0.75 + down[1] * 0.16
         c.setFillColorRGB(0.75, 0.1, 0.1)
         text(c, x, y, label, 0.45, "KRB", angle=ang, anchor="center")
+
+
+def cut_lines(p):
+    """'재단: …' 안내. 6cm보다 길면 ' · ' 에서 줄을 나눈다."""
+    s_ = f"재단: {p.cut_txt}"
+    if stringWidth(s_, "KR", 0.45 * cm) / cm <= 6:
+        return [s_]
+    return s_.split(" · ")
+
+
+def text_box(x, y, s_, z, font="KR"):
+    w = stringWidth(s_, font, z * cm) / cm
+    return Polygon([(x, y - 0.75 * z), (x + w, y - 0.75 * z), (x + w, y + 0.15 * z), (x, y + 0.15 * z)])
+
+
+def sa_label_box(p, pt, label):
+    line = LineString(p.outline + [p.outline[0]])
+    d = line.project(Point(pt))
+    a, b = line.interpolate(max(0, d - 0.5)), line.interpolate(d + 0.5)
+    tx, ty = b.x - a.x, b.y - a.y
+    L = math.hypot(tx, ty) or 1
+    nx, ny = -ty / L, tx / L
+    base = line.interpolate(d)
+    if not p.poly.contains(Point(base.x + nx * 0.3, base.y + ny * 0.3)):
+        nx, ny = -nx, -ny
+    ang = math.degrees(math.atan2(ty, tx))
+    if ang > 90 or ang < -90:
+        ang += 180
+    w = stringWidth(label, "KRB", 0.45 * cm) / cm
+    from shapely import affinity
+    r = Polygon([(-w / 2, -0.2), (w / 2, -0.2), (w / 2, 0.2), (-w / 2, 0.2)])
+    return affinity.translate(affinity.rotate(r, ang, origin=(0, 0)), base.x + nx * 0.75, base.y + ny * 0.75)
+
+
+def cut_positions(p):
+    """'재단' 줄 자리: 아래 → 마지막 줄 오른쪽 → 제목 위 순서로, 조각 안 빈자리를 찾는다."""
+    tx = p.texts[0][0]
+    block = [t for t in p.texts[:3] if abs(t[0] - tx) < 1e-6]
+    last = max(block, key=lambda t: t[1])
+    first = p.texts[0]
+    lines = cut_lines(p)
+    one = " ".join(lines)
+    obst = [text_box(x, y, s_, z, "KRB" if i == 0 else "KR") for i, (x, y, s_, z) in enumerate(p.texts)]
+    obst += [sa_label_box(p, pt, v if isinstance(v, str) else f"시접 {v:g}cm") for pt, v in p.sa_marks]
+    if p.grain:
+        obst.append(LineString(p.grain).buffer(0.15))
+    obst += [LineString(pts) for pts, _, _ in p.lines]
+    obst += [Point(x, y).buffer(r) for x, y, r in p.dots]
+    obst += [Point(n).buffer(0.45) for n in p.notches]
+    inner = p.poly.buffer(-0.15)
+    lastw = stringWidth(last[2], "KR", last[3] * cm) / cm
+    cands = [[(tx, last[1] + 0.8 + i * 0.65, ln) for i, ln in enumerate(lines)],
+             [(tx + lastw + 0.5, last[1], one)],
+             [(tx, first[1] - first[3] * 0.9 - 0.25 - (len(lines) - 1 - i) * 0.65, ln) for i, ln in enumerate(lines)]]
+    for cand in cands:
+        boxes = [text_box(x, y, ln, 0.45) for x, y, ln in cand]
+        if all(inner.contains(b) for b in boxes) and not any(b.intersects(o) for b in boxes for o in obst):
+            return cand
+    return cands[0]
 
 
 def draw_piece(c, p):
@@ -693,7 +785,8 @@ def draw_piece(c, p):
     tx = p.texts[0][0]
     block = [t for t in p.texts[:3] if abs(t[0] - tx) < 1e-6]
     y_last = max(t[1] for t in block)
-    text(c, tx, y_last + 0.8, f"재단: {p.cut_txt}", 0.45)
+    for x, y, ln in cut_positions(p):
+        text(c, x, y, ln, 0.45)
 
 
 def draw_grid(c, W, H):
