@@ -174,6 +174,26 @@ def new_rows(size):
     off = [q for q in g.outline if q[1] < yg - 4 and q[0] < info["Wh"] - 4.5 and fo.distance(Point(q)) > 0.05]
     add("G. 부속", "건 플랩 목·어깨·진동선이 앞판 선과 일치", not off, f"어긋난 점 {len(off)}")
 
+    # 부속끼리 위치가 맞는지
+    fb = [d for d in P["front"].dots if d[2] < 1.0]
+    d_body = math.dist(S["front_shoulder"][1], fb[0][:2]) if fb else -99
+    d_ep = P["epaulette"].dots[0][0]
+    add("G. 부속 위치", "견장 구멍 위치 = 몸판 견장 단추 위치 (어깨점에서, ±0.3)", abs(d_body - d_ep) <= 0.3,
+        f"{d_ep:.2f} / {d_body:.2f}")
+    on_shoulder = LineString(S["front_shoulder"]).distance(Point(fb[0][:2])) < 0.05 if fb else False
+    add("G. 부속 위치", "몸판 견장 단추가 어깨선 위", on_shoulder)
+    outer = sorted(d[1] for d in P["front"].dots if d[2] > 1.0 and d[0] > info["Wh"])
+    for key, nm in (("front", "앞판"), ("facing", "앞 안단")):
+        hl = [l for l in P[key].lines if l[1] == "solid" and len(l[0]) == 2 and abs(l[0][0][1] - l[0][1][1]) < 1e-6
+              and abs(math.dist(*l[0]) - 2.6) < 0.01]
+        ok = len(hl) == 5 and sorted(round(l[0][0][1], 3) for l in hl) == [round(y, 3) for y in outer]
+        add("F. 앞여밈", f"{nm}: 단춧구멍 5개가 바깥 단추 열과 같은 높이", ok, f"{len(hl)}개")
+    for key, nm in (("topsleeve", "윗소매"), ("undersleeve", "밑소매")):
+        has = any(l[2] == "소매 스트랩 위치" for l in P[key].lines)
+        add("G. 부속 위치", f"{nm}에 소매 스트랩 위치선", has)
+    add("G. 부속 위치", "칼라에 목 여밈 탭 단추 위치", bool(P["collar"].dots) and
+        P["collar"].poly.contains(Point(P["collar"].dots[0][:2])))
+
     # H. 올 방향 (전 조각에 식서 있음)
     add("H. 올 방향", "모든 조각에 식서 화살표", all(p.grain for p in pieces))
 

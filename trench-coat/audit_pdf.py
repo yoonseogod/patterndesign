@@ -254,6 +254,19 @@ for p in pieces:
     for pt, v in p.sa_marks:
         lab = v if isinstance(v, str) else f"시접 {v:g}cm"
         rects.append((lab, label_rect(p, pt, lab)[0]))
+    # 안쪽 선에 붙은 설명 글자 (draw_piece와 같은 위치·각도)
+    for pts, st, lab in p.lines:
+        if not lab:
+            continue
+        a0, b0 = pts[0], pts[1]
+        ang = math.degrees(math.atan2(b0[1] - a0[1], b0[0] - a0[0]))
+        if ang > 90 or ang < -90:
+            ang += 180
+        x0 = a0[0] + (b0[0] - a0[0]) * 0.1 + 0.3
+        y0 = a0[1] + (b0[1] - a0[1]) * 0.1 - 0.25
+        w = stringWidth(lab, "KR", 0.42 * 28.3465) / 28.3465
+        r0 = Polygon([(0, -0.75 * 0.42), (w, -0.75 * 0.42), (w, 0.15 * 0.42), (0, 0.15 * 0.42)])
+        rects.append(("선 이름 " + lab, affinity.translate(affinity.rotate(r0, ang, origin=(0, 0)), x0, y0)))
     obstacles = []
     if p.grain:
         obstacles.append(("식서", LineString(p.grain)))

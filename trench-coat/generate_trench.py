@@ -301,7 +301,7 @@ def draft(size):
         grain=((12, 30), (12, 80)),
         lines=[([(0, y_w), (sideX - 0.8, y_w)], "dash", "허리선"),
                ([(0, y_h), (sideX - 0.2, y_h)], "dash", "엉덩이선"),
-               ([(0, vent_top - 5), (0, y_L)], "dot", "뒤중심 (트임 꺾임선)")],
+               ([(0, y_L), (0, vent_top - 5)], "dot", "뒤중심 (트임 꺾임선)")],   # 글자는 밑단 쪽에
         notches=[b_mid, point_at(back_arm, plen(back_arm1) + 1.2), (sideX - 0.8, y_w - 2.5), (sideX - 0.8, y_w + 2.5)],
         texts=[(5, y_w - 12, "뒤판 BACK", 1.4), (5, y_w - 9.5, f"사이즈 {size}", 0.9),
                (sideX - 6, y_w + 4, "벨트고리 위치", 0.5)]))
@@ -333,6 +333,13 @@ def draft(size):
     front_outline = join([f_snp, sp_f], front_arm_out, front_side, list(reversed(front_hem)),
                          list(reversed(front_edge)), list(reversed(front_neck)))
     rows_y = [fnd + 3 + i * ((y_w + 8) - (fnd + 3)) / 4 for i in range(5)]
+    # 견장: 어깨점(진동 솔기)에 끼워 박고, 끝쪽 구멍을 어깨선 위 단추에 채운다
+    ep_len = sh_len_f - 1.5                  # 견장 길이
+    ep_hole = ep_len - 3.0                   # 어깨점에서 견장 구멍까지 = 어깨점에서 몸판 단추까지
+    ep_btn = (sp_f[0] - uf_sh[0] * ep_hole, sp_f[1] - uf_sh[1] * ep_hole)   # 앞 어깨선 위
+    # 단춧구멍: 위로 겹치는 앞판의 바깥 단추 열, 가로 2.6cm (단추 2.3 + 0.3), 앞단 쪽으로 0.3 넘겨 시작
+    holes = [([(Wh + 7.0 + 0.3, y), (Wh + 7.0 + 0.3 - 2.6, y)], "solid", "")
+             for k, y in enumerate(rows_y)]
     btn = [(Wh + s * 7.0, y, 1.15) for y in rows_y for s in (-1, 1)]
     pa, pb = (sideX + 3.5, y_w + 5), (sideX + 7.5, y_w + 22)
     d = math.dist(pa, pb)
@@ -353,13 +360,14 @@ def draft(size):
                ([(sideX + 0.2, y_h), (Wh + DB, y_h)], "dash", "엉덩이선"),
                ([(f_snp[0] + 1.2, 1.0), (Wh + DB, rows_y[1] + 3)], "dot", "라펠 꺾임선"),
                (pocket, "solid", "주머니 웰트 위치"),
+               *holes,
                ([(sp_f[0] + 1, yg + 0.5), (Wh - 4, yg + 2)] + gun_line_pts[1:], "dot", "건플랩 위치 (오른쪽)")],
-        dots=btn + [(f_snp[0] + uf_sh[0] * 2.5 + nf_in[0] * 0.8, f_snp[1] + uf_sh[1] * 2.5 + nf_in[1] * 0.8, 0.8)],
+        dots=btn + [(ep_btn[0], ep_btn[1], 0.8)],
         notches=[f_mid, ce, (sideX + 0.8, y_w - 2.5), (sideX + 0.8, y_w + 2.5)],
         texts=[(sideX + 3, y_w - 14, "앞판 FRONT", 1.4), (sideX + 3, y_w - 11.5, f"사이즈 {size}", 0.9),
                (Wh + 1, rows_y[4] + 5, "단추 5행 × 2열", 0.55),
-               (f_snp[0] + uf_sh[0] * 2.5 + nf_in[0] * 0.8 - 1.0, f_snp[1] + uf_sh[1] * 2.5 + nf_in[1] * 0.8 + 2.0,
-                "견장 단추", 0.45),
+               (ep_btn[0] - 1.5, ep_btn[1] + 2.2, "견장 단추 (어깨선 위)", 0.45),
+               (Wh + 7.3 - 2.6, rows_y[4] + 2.2, "단춧구멍 (가로 2.6cm)", 0.42),
                (sideX + 3, y_w + 27, "주머니 웰트", 0.55)]))
 
     # 앞 안단
@@ -370,11 +378,12 @@ def draft(size):
     piece_list.append(Piece(
         "facing", "앞 안단", "겉감 2장 + 심지 2장 (전체)", facing_outline, fuse="all",
         hem=([(Wh - 4, y_L), (Wh + DB, y_L)], HEM), grain=((Wh + 8.6, y_w + 12), (Wh + 8.6, y_L - 8)),
-        lines=[([(Wh, fnd), (Wh, y_L)], "dashdot", "CF")],
         dots=[(x, y, r) for x, y, r in btn if x > Wh - 4.5],
+        lines=[([(Wh, fnd), (Wh, y_L)], "dashdot", "CF")] + holes,
         notches=[ce],
         texts=[(Wh + 0.5, y_w + 14, "앞 안단", 1.1), (Wh + 0.5, y_w + 16, "FACING", 0.6),
-               (Wh + 0.5, y_w + 17.7, f"사이즈 {size}", 0.6)]))
+               (Wh + 0.5, y_w + 17.7, f"사이즈 {size}", 0.6),
+               (Wh + 7.3 - 2.6, rows_y[4] + 2.2, "단춧구멍", 0.42)]))
 
     # 건 플랩 (오른쪽 앞)
     arm_part, _ = cut_until(front_arm_out, lambda p: p[1] >= yg)
@@ -478,11 +487,19 @@ def draft(size):
     under_outline = join(cap_back, cap_front, [hem_l, hem_r], [tb0])
     under_poly = Polygon(under_outline)
     ub = under_poly.bounds
+    # 소매 스트랩 위치선: 밑단과 나란히 6cm 위 (윗소매와 같은 높이)
+    uh = unit(hem_l, hem_r)
+    un = perp_toward(uh, want_y=-1)
+    c6 = ((hem_l[0] + hem_r[0]) / 2 + un[0] * 6, (hem_l[1] + hem_r[1]) / 2 + un[1] * 6)
+    from shapely.geometry import LineString as _LS
+    sl = under_poly.intersection(_LS([(c6[0] - uh[0] * 40, c6[1] - uh[1] * 40), (c6[0] + uh[0] * 40, c6[1] + uh[1] * 40)]))
+    under_strap = list(sl.coords)
     piece_list.append(Piece(
         "undersleeve", "밑소매", "겉감 2장 · 안감 2장 · 밑단 심지 5cm", under_outline, fuse="hem",
         hem=([hem_r, hem_l] if hem_r[0] < hem_l[0] else [hem_l, hem_r], SLEEVE_HEM),
         grain=(((ub[0] + ub[2]) / 2, CH + 6), ((ub[0] + ub[2]) / 2, SLg - 8)),
         notches=sl_notch["under"] + [elbow_b],
+        lines=[(under_strap, "dot", "소매 스트랩 위치")],
         texts=[(ub[0] + 3, CH + 14, "밑소매", 1.1), (ub[0] + 3, CH + 16, "UNDER SLEEVE", 0.55),
                (ub[0] + 3, CH + 17.5, f"사이즈 {size}", 0.55)]))
 
@@ -527,17 +544,23 @@ def draft(size):
     collar_pt = (fall_top[-1][0] + tdir[0] * 3.0, fall_top[-1][1] + tdir[1] * 3.0)   # 칼라 끝 뾰족
     fall_top = fall_top + [collar_pt]
     fall_outline = join(fall_bot, list(reversed(fall_top)))
+    fe_u = unit(fall_bot[-1], collar_pt)
+    fe_n = perp_toward(fe_u, want_x=-1)
+    fe_m = lerp(fall_bot[-1], collar_pt, 0.5)
+    latch_btn = (fe_m[0] + fe_n[0] * 2.2, fe_m[1] + fe_n[1] * 2.2, 0.8)   # 목 여밈 탭 단추 (한쪽 끝만)
     fall_notch = point_at(fall_bot, plen(back_neck) * plen(fall_bot) / plen(stand_top))  # 칼라밴드 윗선 노치와 같은 비율
     piece_list.append(Piece(
         "collar", "칼라", "겉감 2장 + 심지 2장 (골선)", fall_outline, fold_x=0, fuse="all",
         grain=vgrain(fall_outline, Lc * 0.62), fold_label="CB 골선",
         notches=[fall_notch],
-        texts=[(4, -5.6, "칼라 COLLAR", 0.8), (4, -4.2, f"사이즈 {size}", 0.55)]))
+        dots=[latch_btn],
+        texts=[(4, -5.6, "칼라 COLLAR", 0.8), (4, -4.2, f"사이즈 {size}", 0.55),
+               (latch_btn[0] - 6.0, latch_btn[1] - 1.4, "탭 단추 (한쪽 끝만)", 0.4)]))
 
     # 작은 조각들
-    epa = strap(sh_len_f - 1.5, 5.0, 4.0, 2.2)
+    epa = strap(ep_len, 5.0, 4.0, 2.2)
     piece_list.append(Piece("epaulette", "견장", "겉감 4장 (2벌)", epa, grain=((1, 2.5), (sh_len_f - 5, 2.5)),
-                            dots=[(sh_len_f - 4.5, 2.5, 0.8)],
+                            dots=[(ep_hole, 2.5, 0.8)],
                             texts=[(1, 1.2, "견장 EPAULETTE", 0.5), (1, 4.3, f"사이즈 {size}", 0.45)]))
     # 소매 스트랩: 스트랩 위치(밑단 위 6cm)의 소매 둘레 + 버클 겹침·뾰족 끝 8cm
     circ_strap = wW + (B - wW) * 6 / (SLg - CH)
