@@ -157,6 +157,12 @@ def main(size):
     # 칼라밴드 어깨 노치 = 뒤목 길이
     stand = pieces[[p.key for p in pieces].index("stand")]
     nrows.append(("칼라밴드 어깨 노치 위치 − 뒤목 길이", stand.notches[0][0] - G.plen(bn), -0.3, 0.3))
+    # 칼라밴드 윗선 노치 ↔ 겉칼라 노치: 각 선 시작(뒤중심)에서의 비율이 같아야 함
+    col = pieces[[p.key for p in pieces].index("collar")]
+    st_top, f_bot = S["stand_top"], S["fall_bot"]
+    r1 = dist_along(st_top, stand.notches[1])[0] / G.plen(st_top)
+    r2 = dist_along(f_bot, col.notches[0])[0] / G.plen(f_bot)
+    nrows.append(("칼라밴드 윗선 노치 ↔ 겉칼라 노치 위치 (비율 차 ×100)", (r1 - r2) * 100, -1.0, 1.0))
 
     # 단추 위치
     Wh, DB = info["Wh"], info["DB"]

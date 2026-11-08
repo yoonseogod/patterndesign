@@ -164,6 +164,16 @@ def side_and_hem(pts, toward_x, hem_to_x, y_L, run=12.0):
     return side, hem
 
 
+def vgrain(outline, x, margin=0.9):
+    """조각 안에서 x 위치를 지나는 세로 식서 (위아래 margin 띄움)."""
+    from shapely.geometry import LineString as _LS
+    poly = Polygon(outline)
+    miny, maxy = poly.bounds[1], poly.bounds[3]
+    seg = poly.intersection(_LS([(x, miny - 1), (x, maxy + 1)]))
+    y0, y1 = seg.bounds[1] + margin, seg.bounds[3] - margin
+    return ((x, y0), (x, y1))
+
+
 def lerp(a, b, t):
     return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
@@ -481,8 +491,9 @@ def draft(size):
     stand_outline = join(stand_bot, [(Lc + 0.3, -2.6)], list(reversed(stand_top)))
     piece_list.append(Piece(
         "stand", "칼라 스탠드", "겉감 2장 + 심지 2장 (골선)", stand_outline, fold_x=0, fuse="all",
-        grain=((Lc * 0.62, -2.1), (Lc - 2.5, -2.1)), fold_label="CB 골선",
-        notches=[(plen(back_neck), y_at_x(stand_bot, plen(back_neck)))],
+        grain=vgrain(stand_outline, Lc * 0.72, 0.6), fold_label="CB 골선",
+        notches=[(plen(back_neck), y_at_x(stand_bot, plen(back_neck))),
+                 point_at(stand_top, plen(back_neck))],          # 윗선: 겉칼라 어깨 노치와 맞춤
         texts=[(2.2, -2.4, f"칼라 스탠드 STAND · {size}", 0.5)]))
     # 겉칼라: 아랫선을 앞으로 갈수록 내려 휘게 하고(dip), 바깥선을 아랫선과 나란히(높이 7.5→8.3) 그어
     # 바깥선이 아랫선보다 약 2~2.5cm 길어지게 한다(스프링). 아랫선 길이는 칼라밴드 윗선 + 0.2.
@@ -514,10 +525,10 @@ def draft(size):
     collar_pt = (fall_top[-1][0] + tdir[0] * 3.0, fall_top[-1][1] + tdir[1] * 3.0)   # 칼라 끝 뾰족
     fall_top = fall_top + [collar_pt]
     fall_outline = join(fall_bot, list(reversed(fall_top)))
-    fall_notch = point_at(fall_bot, plen(back_neck) * plen(fall_bot) / plen(stand_top))
+    fall_notch = point_at(fall_bot, plen(back_neck) * plen(fall_bot) / plen(stand_top))  # 칼라밴드 윗선 노치와 같은 비율
     piece_list.append(Piece(
         "collar", "칼라", "겉감 2장 + 심지 2장 (골선)", fall_outline, fold_x=0, fuse="all",
-        grain=((2, -1.7), (Lc - 4, -1.7)), fold_label="CB 골선",
+        grain=vgrain(fall_outline, Lc * 0.62), fold_label="CB 골선",
         notches=[fall_notch],
         texts=[(4, -5.6, "칼라 COLLAR", 0.8), (4, -4.2, f"사이즈 {size}", 0.55)]))
 
@@ -538,7 +549,13 @@ def draft(size):
                             texts=[(5, 1.6, "목 여밈 탭", 0.5), (5, 4.0, size, 0.45)]))
     pk = math.dist(pa, pb)             # 주머니 입구 길이 = 웰트 길이
     welt = [(0, 0), (pk, 0), (pk, 9), (0, 9)]
-    piece_list.append(Piece("welt", "주머니 웰트", "겉감 2장", welt, grain=((pk - 3, 1), (pk - 3, 8)),
+    # 웰트 식서: 앞판에 달렸을 때 앞판 식서(세로)와 같아지도록, 입구 기울기만큼 기울인다
+    th = math.atan2(pb[0] - pa[0], pb[1] - pa[1])
+    gl = 7.0
+    gc = (pk * 0.62, 6.6)
+    welt_grain = ((gc[0] - math.cos(th) * gl / 2, gc[1] - math.sin(th) * gl / 2),
+                  (gc[0] + math.cos(th) * gl / 2, gc[1] + math.sin(th) * gl / 2))
+    piece_list.append(Piece("welt", "주머니 웰트", "겉감 2장 (식서는 앞판과 같은 방향)", welt, grain=welt_grain,
                             lines=[([(0, 4.5), (pk, 4.5)], "dot", "접는 선")],
                             texts=[(1.5, 2.8, "주머니 웰트 WELT", 0.6), (1.5, 7.2, f"사이즈 {size}", 0.5)]))
     bw = pk + 4                         # 주머니감 폭 = 입구 + 4
@@ -1047,7 +1064,8 @@ def cover_page(c, size, info, pieces, rows, used):
               "벨트고리: 6 × 8cm 4장 (시접 포함, 3겹 접어 완성 2 × 6cm, 허리 옆선용)  ·  소매 버클 2개, 벨트 버클 1개",
               "단추: 앞 2.3cm 10개 (패턴 표시) + 안쪽 여밈 단추 1개, 1.6cm 4개 (견장 2 · 목 여밈 탭 2)",
               "안감: 앞판·뒤판·윗소매·밑소매 본 사용 (안단 폭만큼 앞판 안감 제외, 뒤중심 주름 2cm 추가)",
-              "  · 소매 안감은 겨드랑이(소매산 아래)를 1cm 올려 재단 · 안감 밑단은 겉감 완성선보다 2~3cm 짧게"]
+              "  · 소매 안감은 겨드랑이(소매산 아래)를 1cm 올려 재단 · 안감 밑단은 겉감 완성선보다 2~3cm 짧게",
+              "원단 두께분: 겉칼라(겉쪽 1장)와 안단 라펠 바깥선은 0.2~0.3cm 크게 그려 재단 (겉에서 봉제선이 안 보이게)"]
     for i, s in enumerate(items):
         c.drawString(1.5 * cm, y - (i + 1) * 11.5, s)
     # 배치도

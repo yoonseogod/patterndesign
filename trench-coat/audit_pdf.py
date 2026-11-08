@@ -276,6 +276,9 @@ outside += [f"{p.name}: '{t[2]}'" for p in pieces for t in p.texts
             if not p.poly.buffer(0.01).contains(text_rect(t[0], t[1], t[2], t[3]))]
 outside += [f"{p.name}: '{ln}'" for p in pieces for x, y, ln in G.cut_positions(p)
             if not p.poly.buffer(-0.05).contains(text_rect(x, y, ln, 0.45))]
+fold_bad = [p.name for p in pieces if p.fold_x is not None and p.grain
+            and abs(p.grain[0][0] - p.grain[1][0]) > 0.01]
+check("골선 조각의 식서가 접는 선과 나란함", not fold_bad, ", ".join(fold_bad))
 check("식서 화살표와 조각 글자가 모두 조각 안에 있음", not outside, "; ".join(outside))
 check("글자가 식서·안쪽 선·단추·다른 글자와 겹치지 않음", not hits, "; ".join(hits))
 print(f"결과(추가 포함): {sum(r[1] for r in results)}/{len(results)} 통과")
