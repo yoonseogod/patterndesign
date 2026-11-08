@@ -221,7 +221,8 @@ def draft(size):
 
     # 뒤판
     back_neck = bez((0, cb_rise), (bnw * 0.6, cb_rise), (bnw * 0.95, 0.9), (bnw, 0))
-    sp_b = (backW + 1.8, (backW + 1.8 - bnw) * math.tan(math.radians(19)) - pad)
+    sh_ext = 0.105 * C - 8.5        # 뒤품선 밖으로 나가는 어깨 (사이즈 100 ≈ 1.8)
+    sp_b = (backW + sh_ext, (backW + sh_ext - bnw) * math.tan(math.radians(19)) - pad)
     sh_len_b = math.dist((bnw, 0), sp_b)
     b_mid = (backW, sp_b[1] + (scye - sp_b[1]) * 0.6)
     back_arm = join(bez(sp_b, (sp_b[0] - 0.6, sp_b[1] + 3), (backW, b_mid[1] - 4), b_mid),
@@ -440,6 +441,20 @@ def draft(size):
                 chest_garment=4 * Wh / 2 * 1, length=m["coat_len"],
                 belt_len=round(2 * (Wh - 1.6) * 2 / 2 + 45))
     info["chest_garment"] = 2 * Wh
+    # 가상 봉제 검사용: 서로 꿰매는 선들
+    info["seams"] = dict(
+        back_neck=back_neck, front_neck=front_neck, neck_ext=[(Wh, fnd), ce],
+        back_shoulder=[(bnw, 0), sp_b], front_shoulder=[f_snp, sp_f],
+        back_arm=back_arm, front_arm=front_arm_out, back_side=back_side, front_side=front_side,
+        cap=capc, back_hem=back_hem, front_hem=front_hem, front_edge=front_edge,
+        top_front=front_seam, top_back=[tb0, tb1],
+        under_front=[tf0, (wf - ef, SLg)], under_back=[tb0, (wb + eb, SLg)],
+        stand_bot=stand_bot, stand_top=stand_top, fall_bot=fall_bot,
+        facing_edge=front_edge, shield_neck=back_neck,
+        top_wrist=[tf1, tb1], under_wrist=[(xc - wW / 2, SLg), (wf - ef, SLg), None, (wb + eb, SLg), (xc + wW / 2, SLg)],
+    )
+    info.update(dict(sp_b=sp_b, sp_f=sp_f, sideX=sideX, y_w=y_w, y_h=y_h, y_L=y_L, cb_rise=cb_rise,
+                     fnd=fnd, bnw=bnw, fnw=fnw, DB=DB, backW=backW, frontW=frontW, pad=pad))
     info["belt_len"] = round(2 * (2 * (Wh - 1.6)) / 2 + 45)
     return piece_list, info
 
