@@ -34,7 +34,7 @@ python3 generate_trench.py          # 전체 사이즈
 python3 generate_trench.py 100      # 100만
 python3 generate_trench.py --sa     # 시접 포함 버전 (_withSA)
 python3 verify_fit.py 100           # 봉제선·여유분 검증 + 3D 그림 (verify/)
-python3 audit_pdf.py 100 [--sa]     # PDF 검사: 실제 크기, 이어 붙이기, 글자 겹침 등 16항목
+python3 audit_pdf.py 100 [--sa]     # PDF 검사: 실제 크기, 이어 붙이기, 글자 겹침·시접 표기 누락 등 17항목
 python3 review_draft.py 100         # 제도 검토: 이음점 각도, 소매·진동 노치 맞춤, 오그림 배분
 python3 review_grading.py           # 사이즈 간 검토: 치수 증가 간격, 겹쳐 보기 (verify/grading_nest.png)
 ```

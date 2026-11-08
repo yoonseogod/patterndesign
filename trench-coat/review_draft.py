@@ -161,7 +161,7 @@ def main(size):
     # 단추 위치
     Wh, DB = info["Wh"], info["DB"]
     front = pieces[[p.key for p in pieces].index("front")]
-    xs = sorted({round(x - Wh, 2) for x, _, _ in front.dots})
+    xs = sorted({round(x - Wh, 2) for x, _, rr in front.dots if rr > 1.0})   # 앞여밈 단추만 (견장 단추 제외)
     edge_gap = DB - max(xs)
     btn_rows = [("단추 좌우가 앞중심 기준 대칭", abs(xs[0] + xs[-1]), 0, 0.01),
                 ("바깥 단추 ~ 앞단 거리 (단추 지름 2.3cm 기준 2.5~4cm)", edge_gap, 2.5, 4.0)]
