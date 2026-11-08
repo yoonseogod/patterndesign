@@ -102,7 +102,7 @@ def ease_checks(size, info, neck_line):
         ("위팔둘레", b["bicep"], info["B"], (6, 12), "재킷 위에 입을 여유"),
         ("소매부리", b["wrist"], info["wW"], (12, 22), "손이 빠지고 재킷 소매가 들어갈 여유"),
         ("진동깊이 (옆목점→겨드랑이)", b["armpit_depth"], y_scye, (3, 7), "코트는 몸보다 3~7cm 깊게"),
-        ("소매길이 (어깨점→손목)", b["arm"], info["SLg"], (1.5, 4.5), "손목을 덮는 길이"),
+        ("소매길이 (어깨점→손목)", b["arm"], info["SLg"], (3.0, 5.5), "패드·소매산 부풀림 + 손목을 덮는 길이"),
     ]
     out = []
     for name, body, g, (lo, hi), note in rows:

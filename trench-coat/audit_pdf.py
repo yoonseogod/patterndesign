@@ -154,6 +154,45 @@ for p in pieces:
             problems.append(f"{p.name}:{label} 글자가 조각 밖으로 나감")
 check(f"시접 글자 {nlab}개 모두 해당 선 위 기준점 + 조각 안쪽에 들어감", not problems, "; ".join(problems))
 
+# 모든 선(모서리 사이 구간, 3cm 이상, 골선 제외)에 시접 표기가 있는지
+def edges(pts, turn=35):
+    pts = [q for i, q in enumerate(pts) if i == 0 or math.dist(q, pts[i - 1]) > 1e-6]
+    if math.dist(pts[0], pts[-1]) < 1e-6:
+        pts = pts[:-1]
+    n = len(pts)
+    corners = []
+    for i in range(n):
+        a_, b_, c_ = pts[i - 1], pts[i], pts[(i + 1) % n]
+        v1 = (b_[0] - a_[0], b_[1] - a_[1]); v2 = (c_[0] - b_[0], c_[1] - b_[1])
+        l1, l2 = math.hypot(*v1), math.hypot(*v2)
+        if l1 and l2:
+            cosv = max(-1, min(1, (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2)))
+            if math.degrees(math.acos(cosv)) > turn:
+                corners.append(i)
+    out = []
+    for k in range(len(corners)):
+        i0, i1 = corners[k], corners[(k + 1) % len(corners)]
+        seg = [pts[j % n] for j in range(i0, i1 + (n if i1 <= i0 else 0) + 1)]
+        out.append(seg)
+    return out
+
+missing = []
+small = {"epaulette", "cuffstrap", "latch", "welt", "bag", "belttip"}  # '사방 시접' 한 번 표기
+for p in pieces:
+    if p.key in small:
+        if not p.sa_marks:
+            missing.append(f"{p.name}: 표기 없음")
+        continue
+    for seg in edges(p.outline):
+        if G.plen(seg) < 3:
+            continue
+        if p.fold_x is not None and all(abs(q[0] - p.fold_x) < 0.05 for q in seg):
+            continue
+        ls = LineString(seg)
+        if not any(ls.distance(Point(pt)) < 0.1 for pt, _ in p.sa_marks):
+            missing.append(f"{p.name}: {G.plen(seg):.0f}cm 선 ({seg[0][0]:.0f},{seg[0][1]:.0f})")
+check("3cm 넘는 모든 선(골선 제외)에 시접 표기가 있음", not missing, "; ".join(missing))
+
 # 꿰매는 짝끼리 시접 폭 같은지 (조각, 표기 순서)
 SAv = {p.key: [v for _, v in p.sa_marks] for p in pieces}
 pairs = [("어깨 앞/뒤", ("front", 0), ("back", 1)), ("옆선 앞/뒤", ("front", 2), ("back", 3)),

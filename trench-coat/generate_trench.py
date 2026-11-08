@@ -29,12 +29,14 @@ pdfmetrics.registerFont(TTFont("KR", os.path.join(HERE, "fonts", "NanumGothic-Re
 pdfmetrics.registerFont(TTFont("KRB", os.path.join(HERE, "fonts", "NanumGothic-Bold.ttf")))
 
 # ── 치수표 (신체 치수, cm) ────────────────────────────────────────────────
+# sleeve = 몸의 팔길이 (어깨끝점~손목, 키 × 0.344). 완성 소매길이는 여기에 SLEEVE_ADD를 더한다.
 SIZES = {
-    "95":  dict(chest=94,  height=170, neck=39, nape_waist=44.0, coat_len=98,  sleeve=62.0),
-    "100": dict(chest=98,  height=175, neck=40, nape_waist=45.0, coat_len=101, sleeve=63.5),
-    "105": dict(chest=102, height=180, neck=41, nape_waist=46.0, coat_len=104, sleeve=65.0),
-    "110": dict(chest=106, height=185, neck=42, nape_waist=47.0, coat_len=107, sleeve=66.5),
+    "95":  dict(chest=94,  height=170, neck=39, nape_waist=44.0, coat_len=98,  sleeve=58.5),
+    "100": dict(chest=98,  height=175, neck=40, nape_waist=45.0, coat_len=101, sleeve=60.2),
+    "105": dict(chest=102, height=180, neck=41, nape_waist=46.0, coat_len=104, sleeve=61.9),
+    "110": dict(chest=106, height=185, neck=42, nape_waist=47.0, coat_len=107, sleeve=63.6),
 }
+SLEEVE_ADD = 4.5   # 어깨패드 1 + 소매산 부풀림 1.5 + 손목 덮음 2
 
 SA = 1.0        # 기본 시접
 SA_SIDE = 1.5   # 옆선 · 뒤중심 (맞음새 조정분)
@@ -251,8 +253,8 @@ def draft(size):
     # 몸판 원형 (반쪽, y는 아래로 증가, 옆목점 높이 = 0)
     Wh = C / 2 + 12                 # 반 가슴둘레 + 여유 12 (총 24)
     scye = C / 10 + 17.0            # 진동깊이
-    backW = C / 8 + 9.5             # 뒤 품
-    frontW = C / 8 + 10.5           # 앞 품
+    backW = C / 8 + 9.75            # 뒤 품 (남성은 뒤품이 앞품보다 넓다)
+    frontW = C / 8 + 8.75           # 앞 품
     sideX = backW + (Wh - backW - frontW) * 0.5
     bnw = N / 5 + 1.2               # 뒤 목너비
     fnw = bnw - 0.3
@@ -266,7 +268,7 @@ def draft(size):
     flare = 3.0
 
     # 뒤판
-    sh_ext = 0.105 * C - 8.5        # 뒤품선 밖으로 나가는 어깨 (사이즈 100 ≈ 1.8)
+    sh_ext = 0.105 * C - 8.75       # 뒤품선 밖으로 나가는 어깨 (사이즈 100 ≈ 1.5)
     sp_b = (backW + sh_ext, (backW + sh_ext - bnw) * math.tan(math.radians(19)) - pad)
     sh_len_b = math.dist((bnw, 0), sp_b)
     ub_sh = unit((bnw, 0), sp_b)                         # 옆목점 → 어깨점
@@ -342,10 +344,12 @@ def draft(size):
                ([(f_snp[0] + 1.2, 1.0), (Wh + DB, rows_y[1] + 3)], "dot", "라펠 꺾임선"),
                (pocket, "solid", "주머니 웰트 위치"),
                ([(sp_f[0] + 1, yg + 0.5), (Wh - 4, yg + 2)] + gun_line_pts[1:], "dot", "건플랩 위치 (오른쪽)")],
-        dots=btn,
+        dots=btn + [(f_snp[0] + uf_sh[0] * 2.5 + nf_in[0] * 0.8, f_snp[1] + uf_sh[1] * 2.5 + nf_in[1] * 0.8, 0.8)],
         notches=[f_mid, ce, (sideX + 0.8, y_w - 2.5), (sideX + 0.8, y_w + 2.5)],
         texts=[(sideX + 3, y_w - 14, "앞판 FRONT", 1.4), (sideX + 3, y_w - 11.5, f"사이즈 {size}", 0.9),
                (Wh + 1, rows_y[4] + 5, "단추 5행 × 2열", 0.55),
+               (f_snp[0] + uf_sh[0] * 2.5 + nf_in[0] * 0.8 - 1.0, f_snp[1] + uf_sh[1] * 2.5 + nf_in[1] * 0.8 + 2.0,
+                "견장 단추", 0.45),
                (sideX + 3, y_w + 27, "주머니 웰트", 0.55)]))
 
     # 앞 안단
@@ -376,7 +380,7 @@ def draft(size):
     # 뒤 스톰실드 (골선)
     sh_y = scye - 3
     bs_arm, _ = cut_until(back_arm, lambda p: p[1] >= sh_y)
-    h1 = (bs_arm[-1][0] + 0.8, bs_arm[-1][1])
+    h1 = bs_arm[-1]                  # 진동선 끝에서 바로 밑단 시작 (진동 솔기와 일치)
     shield_hem = catmull([h1, (h1[0] * 0.5, sh_y + 2.2), (0, sh_y + 3)])
     shield_outline = join(back_neck, [(bnw, 0), sp_b], bs_arm, [h1], shield_hem, [(0, cb_rise)])
     piece_list.append(Piece(
@@ -389,7 +393,7 @@ def draft(size):
     AH = plen(front_arm_out) + plen(back_arm)
     B = 0.2 * C + 20
     wW = 0.22 * C + 13
-    SLg = m["sleeve"] + 3
+    SLg = m["sleeve"] + SLEEVE_ADD
     xt = B * 0.52
 
     def cap(CH):
@@ -480,13 +484,41 @@ def draft(size):
         grain=((Lc * 0.62, -2.1), (Lc - 2.5, -2.1)), fold_label="CB 골선",
         notches=[(plen(back_neck), y_at_x(stand_bot, plen(back_neck)))],
         texts=[(2.2, -2.4, f"칼라 스탠드 STAND · {size}", 0.5)]))
-    fall_bot = catmull([(0, 0), (Lc * 0.5, 0.3), (Lc - 0.3, 1.5)])
-    fall_top = catmull([(0, -7.5), (Lc * 0.6, -7.7), (Lc + 3.0, -8.6)])
+    # 겉칼라: 아랫선을 앞으로 갈수록 내려 휘게 하고(dip), 바깥선을 아랫선과 나란히(높이 7.5→8.3) 그어
+    # 바깥선이 아랫선보다 약 2~2.5cm 길어지게 한다(스프링). 아랫선 길이는 칼라밴드 윗선 + 0.2.
+    FALL_DIP = 4.5
+
+    def make_fall(Lb):
+        bot = catmull([(-Lb * 0.5, FALL_DIP * 0.25), (0, 0), (Lb * 0.5, FALL_DIP * 0.25), (Lb, FALL_DIP)])
+        bot = [p for p in bot if p[0] >= -1e-9]
+        top = []
+        n_ = len(bot)
+        for i, p in enumerate(bot):
+            a_, b_ = bot[max(0, i - 1)], bot[min(n_ - 1, i + 1)]
+            t_ = unit(a_, b_)
+            nrm = perp_toward(t_, want_y=-1)
+            h_ = 7.5 + 0.8 * i / (n_ - 1)
+            top.append((p[0] + nrm[0] * h_, p[1] + nrm[1] * h_))
+        top[0] = (0.0, top[0][1])
+        return bot, top
+    lo_, hi_ = Lc * 0.8, Lc * 1.1
+    target = plen(stand_top) + 0.2
+    for _ in range(40):
+        mid_ = (lo_ + hi_) / 2
+        if plen(make_fall(mid_)[0]) < target:
+            lo_ = mid_
+        else:
+            hi_ = mid_
+    fall_bot, fall_top = make_fall((lo_ + hi_) / 2)
+    tdir = unit(fall_top[-4], fall_top[-1])
+    collar_pt = (fall_top[-1][0] + tdir[0] * 3.0, fall_top[-1][1] + tdir[1] * 3.0)   # 칼라 끝 뾰족
+    fall_top = fall_top + [collar_pt]
     fall_outline = join(fall_bot, list(reversed(fall_top)))
+    fall_notch = point_at(fall_bot, plen(back_neck) * plen(fall_bot) / plen(stand_top))
     piece_list.append(Piece(
         "collar", "칼라", "겉감 2장 + 심지 2장 (골선)", fall_outline, fold_x=0, fuse="all",
         grain=((2, -1.7), (Lc - 4, -1.7)), fold_label="CB 골선",
-        notches=[(plen(back_neck), y_at_x(fall_bot, plen(back_neck)))],
+        notches=[fall_notch],
         texts=[(4, -5.6, "칼라 COLLAR", 0.8), (4, -4.2, f"사이즈 {size}", 0.55)]))
 
     # 작은 조각들
@@ -494,7 +526,9 @@ def draft(size):
     piece_list.append(Piece("epaulette", "견장", "겉감 4장 (2벌)", epa, grain=((1, 2.5), (sh_len_f - 5, 2.5)),
                             dots=[(sh_len_f - 4.5, 2.5, 0.8)],
                             texts=[(1, 1.2, "견장 EPAULETTE", 0.5), (1, 4.3, f"사이즈 {size}", 0.45)]))
-    sl_strap_len = wW + 4
+    # 소매 스트랩: 스트랩 위치(밑단 위 6cm)의 소매 둘레 + 버클 겹침·뾰족 끝 8cm
+    circ_strap = wW + (B - wW) * 6 / (SLg - CH)
+    sl_strap_len = circ_strap + 8
     piece_list.append(Piece("cuffstrap", "소매 스트랩", "겉감 4장 (2벌)", strap(sl_strap_len, 4.0, 4.0, 2.0),
                             grain=((2, 2), (sl_strap_len - 6, 2)),
                             texts=[(3, 1.3, "소매 스트랩 SLEEVE STRAP", 0.5), (3, 3.3, f"사이즈 {size}", 0.45)]))
@@ -502,12 +536,15 @@ def draft(size):
     piece_list.append(Piece("latch", "목 여밈 탭", "겉감 2장", latch, grain=((3, 2.5), (13, 2.5)),
                             dots=[(3.5, 2.5, 0.7), (12.5, 2.5, 0.7)],
                             texts=[(5, 1.6, "목 여밈 탭", 0.5), (5, 4.0, size, 0.45)]))
-    welt = [(0, 0), (18, 0), (18, 9), (0, 9)]
-    piece_list.append(Piece("welt", "주머니 웰트", "겉감 2장", welt, grain=((15, 1), (15, 8)),
-                            lines=[([(0, 4.5), (18, 4.5)], "dot", "접는 선")],
+    pk = math.dist(pa, pb)             # 주머니 입구 길이 = 웰트 길이
+    welt = [(0, 0), (pk, 0), (pk, 9), (0, 9)]
+    piece_list.append(Piece("welt", "주머니 웰트", "겉감 2장", welt, grain=((pk - 3, 1), (pk - 3, 8)),
+                            lines=[([(0, 4.5), (pk, 4.5)], "dot", "접는 선")],
                             texts=[(1.5, 2.8, "주머니 웰트 WELT", 0.6), (1.5, 7.2, f"사이즈 {size}", 0.5)]))
-    bag = join([(0, 0), (20, 0)], bez((20, 0), (20, 22), (20, 30), (12, 30)), bez((12, 30), (2, 30), (0, 26), (0, 18)))
-    piece_list.append(Piece("bag", "주머니감", "안감 또는 스레키 4장", bag, grain=((10, 3), (10, 26)),
+    bw = pk + 4                         # 주머니감 폭 = 입구 + 4
+    bag = join([(0, 0), (bw, 0)], bez((bw, 0), (bw, 22), (bw, 30), (bw - 8, 30)),
+               bez((bw - 8, 30), (2, 30), (0, 26), (0, 18)))
+    piece_list.append(Piece("bag", "주머니감", "안감 또는 스레키 4장", bag, grain=((bw / 2, 3), (bw / 2, 26)),
                             texts=[(2, 9, "주머니감 POCKET BAG", 0.7), (2, 11, f"사이즈 {size}", 0.55)]))
     belt_tip = strap(25, 5.0, 5.0, 3.0)
     piece_list.append(Piece("belttip", "벨트 끝 본", "본 (재단 안내 참조)", belt_tip,
@@ -520,7 +557,8 @@ def draft(size):
     marks = {
         "back": [(mid(back_neck), SA), (lerp((bnw, 0), sp_b, 0.5), SA), (mid(back_arm), SA),
                  (mid(back_side), SA_SIDE), (((sideX + flare - 5) / 2, y_L), f"밑단 시접 {HEM:g}cm"),
-                 ((-5, (vent_top + y_L) / 2), SA), ((0, (cb_rise + vent_top - 5) / 2), SA_SIDE)],
+                 ((-5, (vent_top + y_L) / 2), SA), ((0, (cb_rise + vent_top - 5) / 2), SA_SIDE),
+                 (lerp((-5, vent_top), (0, vent_top - 5), 0.5), SA)],
         "front": [(lerp(f_snp, sp_f, 0.5), SA), (mid(front_arm_out), SA), (mid(front_side), SA_SIDE),
                   (((Wh + DB + sideX - flare) / 2, y_L), f"밑단 시접 {HEM:g}cm"),
                   ((Wh + DB, (lp[1] + y_L) / 2), SA), (lerp(ce, lp, 0.5), SA), (mid(front_neck), SA)],
@@ -528,7 +566,8 @@ def draft(size):
                    ((Wh + DB / 2 - 2, y_L), f"밑단 시접 {HEM:g}cm"), ((Wh - 4, scye + 12), SA),
                    (lerp(ce, lp, 0.5), SA)],
         "gunflap": [(lerp(f_snp, sp_f, 0.5), SA), (mid(arm_part), SA), (lerp(g1, (g1[0] + 8, yg + 3.0), 0.5), SA),
-                    (((g1[0] + 8 + Wh - 4) / 2, yg + 2.5), SA), (mid(neck_pts), SA)],
+                    (((g1[0] + 8 + Wh - 4) / 2, yg + 2.5), SA), (mid(neck_pts), SA),
+                    (lerp((Wh - 4, yg + 2), (Wh - 3.2, (yg + 2 + neck_pts[-1][1]) / 2), 0.5), SA)],
         "shield": [(mid(back_neck), SA), (lerp((bnw, 0), sp_b, 0.5), SA), (mid(bs_arm), SA), (mid(shield_hem), SA)],
         "topsleeve": [((fq + 2, y_at_x(capc, fq + 2)), SA), (lerp(tb0, tb1, 0.5), SA), (front_seam[len(front_seam) // 4], SA),
                       (lerp(tf1, tb1, 0.5), f"밑단 시접 {SLEEVE_HEM:g}cm")],
@@ -536,12 +575,12 @@ def draft(size):
                         (rot(lerp((fq - ef + B, y_at_x(capc, fq - ef)), (wf - ef + B, SLg), 0.5), (B, CH), ang), SA),
                         (lerp(hem_r, hem_l, 0.5), f"밑단 시접 {SLEEVE_HEM:g}cm")],
         "stand": [(mid(stand_bot), SA), (mid(stand_top), SA), ((Lc + 0.25, -2.4), SA)],
-        "collar": [(mid(fall_bot), SA), (mid(fall_top), SA), (lerp((Lc - 0.3, 1.5), (Lc + 3.0, -8.6), 0.5), SA)],
+        "collar": [(mid(fall_bot), SA), (mid(fall_top), SA), (lerp(fall_bot[-1], collar_pt, 0.5), SA)],
         "epaulette": [(((sh_len_f - 1.5) * 0.6, 0.3), "사방 시접 1cm")],
         "cuffstrap": [((sl_strap_len / 2, 0), "사방 시접 1cm")],
         "latch": [((8, 0), "사방 1cm")],
-        "welt": [((9, 9), "사방 시접 1cm")],
-        "bag": [((10, 0), "사방 시접 1cm")],
+        "welt": [((pk / 2, 9), "사방 시접 1cm")],
+        "bag": [((bw / 2, 0), "사방 시접 1cm")],
         "belttip": [((11, 5), "사방 시접 1cm")],
     }
     for p in piece_list:
@@ -559,7 +598,7 @@ def draft(size):
         cap=capc, back_hem=back_hem, front_hem=front_hem, front_edge=front_edge,
         top_front=front_seam, top_back=[tb0, tb1],
         under_front=[tf0, (wf - ef, SLg)], under_back=[tb0, (wb + eb, SLg)],
-        stand_bot=stand_bot, stand_top=stand_top, fall_bot=fall_bot,
+        stand_bot=stand_bot, stand_top=stand_top, fall_bot=fall_bot, fall_outer=fall_top[:-1],
         facing_edge=front_edge, shield_neck=back_neck,
         top_wrist=[tf1, tb1], under_wrist=[hem_l, hem_r], under_front_rot=[tr(tf0), hem_l],
     )
@@ -1005,9 +1044,10 @@ def cover_page(c, size, info, pieces, rows, used):
     c.setFont("KR", 8.2)
     items = [f"{p.name}: {p.cut_txt}" for p in pieces if p.key != "belttip"]
     items += [f"벨트: {info['belt_len']} × 12cm 직사각형 1장 (시접 1cm 포함 치수, 반 접어 완성 폭 5cm, 끝은 '벨트 끝 본')",
-              "벨트고리: 6 × 6cm 4장 (시접 포함, 허리 옆선용)  ·  소매 버클 2개, 벨트 버클 1개",
+              "벨트고리: 6 × 8cm 4장 (시접 포함, 3겹 접어 완성 2 × 6cm, 허리 옆선용)  ·  소매 버클 2개, 벨트 버클 1개",
               "단추: 앞 2.3cm 10개 (패턴 표시) + 안쪽 여밈 단추 1개, 1.6cm 4개 (견장 2 · 목 여밈 탭 2)",
-              "안감: 앞판·뒤판·윗소매·밑소매 본 사용 (안단 폭만큼 앞판 안감 제외, 뒤중심 주름 2cm 추가)"]
+              "안감: 앞판·뒤판·윗소매·밑소매 본 사용 (안단 폭만큼 앞판 안감 제외, 뒤중심 주름 2cm 추가)",
+              "  · 소매 안감은 겨드랑이(소매산 아래)를 1cm 올려 재단 · 안감 밑단은 겉감 완성선보다 2~3cm 짧게"]
     for i, s in enumerate(items):
         c.drawString(1.5 * cm, y - (i + 1) * 11.5, s)
     # 배치도

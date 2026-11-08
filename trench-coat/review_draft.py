@@ -151,6 +151,9 @@ def main(size):
     # 칼라 끝 = 노치(ce): 칼라밴드 길이 = 뒤목 + 앞목 + CF~노치
     neck_total = G.plen(bn) + G.plen(fn) + G.plen(S["neck_ext"])
     nrows.append(("칼라밴드 길이 − 목둘레선(뒤중심~칼라 끝)", G.plen(S["stand_bot"]) - neck_total, -0.3, 0.3))
+    # 겉칼라 스프링: 바깥선이 아랫선보다 길어야 어깨 쪽에 납작하게 얹힘
+    nrows.append(("겉칼라 스프링 (바깥선 − 아랫선)", G.plen(S["fall_outer"]) - G.plen(S["fall_bot"]), 1.5, 3.0))
+    nrows.append(("겉칼라 아랫선 − 칼라밴드 윗선", G.plen(S["fall_bot"]) - G.plen(S["stand_top"]), 0.0, 0.5))
     # 칼라밴드 어깨 노치 = 뒤목 길이
     stand = pieces[[p.key for p in pieces].index("stand")]
     nrows.append(("칼라밴드 어깨 노치 위치 − 뒤목 길이", stand.notches[0][0] - G.plen(bn), -0.3, 0.3))
