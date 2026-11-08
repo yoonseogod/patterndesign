@@ -121,6 +121,47 @@ def rot(p, c, ang):
     return (c[0] + x * co - y * s, c[1] + x * s + y * co)
 
 
+def point_at(pts, dist):
+    """선 시작에서 dist cm 떨어진 점."""
+    acc = 0
+    for i in range(1, len(pts)):
+        seg = math.dist(pts[i - 1], pts[i])
+        if seg and acc + seg >= dist:
+            t = (dist - acc) / seg
+            return (pts[i - 1][0] + t * (pts[i][0] - pts[i - 1][0]), pts[i - 1][1] + t * (pts[i][1] - pts[i - 1][1]))
+        acc += seg
+    return pts[-1]
+
+
+def perp_toward(u, want_x=None, want_y=None):
+    """단위벡터 u에 수직이면서 원하는 쪽(x 또는 y 부호)을 향하는 단위벡터."""
+    n = (-u[1], u[0])
+    if (want_x is not None and n[0] * want_x < 0) or (want_y is not None and n[1] * want_y < 0):
+        n = (-n[0], -n[1])
+    return n
+
+
+def unit(a, b):
+    d = math.dist(a, b)
+    return ((b[0] - a[0]) / d, (b[1] - a[1]) / d)
+
+
+def side_and_hem(pts, toward_x, hem_to_x, y_L, run=12.0):
+    """옆선과, 옆선에 직각으로 시작해 수평으로 이어지는 밑단.
+    pts: 옆선 기준점(위→아래, 마지막이 밑단), toward_x: 밑단이 향하는 x 부호."""
+    side = catmull(pts)
+    t = unit(side[-3], side[-1])
+    h = run * abs(t[0] / t[1]) / 2
+    end = (pts[-1][0] - t[0] / t[1] * h, y_L - h)
+    side = catmull(pts[:-1] + [end])
+    t = unit(side[-3], side[-1])
+    n = perp_toward(t, want_x=toward_x)
+    c = end
+    hem = join(bez(c, (c[0] + n[0] * 4, c[1] + n[1] * 4), (c[0] + toward_x * (run - 4), y_L),
+                   (c[0] + toward_x * run, y_L)), [(hem_to_x, y_L)])
+    return side, hem
+
+
 def lerp(a, b, t):
     return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
@@ -216,7 +257,7 @@ def draft(size):
     bnw = N / 5 + 1.2               # 뒤 목너비
     fnw = bnw - 0.3
     fnd = N / 5 + 2.5               # 앞 목깊이
-    cb_rise = 2.0
+    cb_rise = 2.2                    # 뒷목 깊이
     y_w = cb_rise + m["nape_waist"] + 2
     y_h = y_w + 20
     y_L = cb_rise + m["coat_len"]
@@ -225,17 +266,22 @@ def draft(size):
     flare = 3.0
 
     # 뒤판
-    back_neck = bez((0, cb_rise), (bnw * 0.6, cb_rise), (bnw * 0.95, 0.9), (bnw, 0))
     sh_ext = 0.105 * C - 8.5        # 뒤품선 밖으로 나가는 어깨 (사이즈 100 ≈ 1.8)
     sp_b = (backW + sh_ext, (backW + sh_ext - bnw) * math.tan(math.radians(19)) - pad)
     sh_len_b = math.dist((bnw, 0), sp_b)
+    ub_sh = unit((bnw, 0), sp_b)                         # 옆목점 → 어깨점
+    nb_up = perp_toward(ub_sh, want_y=-1)               # 어깨선에 수직, 위쪽
+    # 목둘레: 뒤중심에서 수평으로 출발, 옆목점에는 어깨선과 직각으로 도착
+    back_neck = bez((0, cb_rise), (bnw * 0.6, cb_rise), (bnw - nb_up[0] * 2.5, -nb_up[1] * 2.5), (bnw, 0))
     b_mid = (backW, sp_b[1] + (scye - sp_b[1]) * 0.6)
-    back_arm = join(bez(sp_b, (sp_b[0] - 0.6, sp_b[1] + 3), (backW, b_mid[1] - 4), b_mid),
+    nb_dn = perp_toward(ub_sh, want_y=1)                # 어깨점에서 진동 방향 (어깨선과 직각)
+    back_arm1 = bez(sp_b, (sp_b[0] + nb_dn[0] * 3, sp_b[1] + nb_dn[1] * 3), (backW, b_mid[1] - 4), b_mid)
+    back_arm = join(back_arm1,
                     bez(b_mid, (backW, b_mid[1] + 0.55 * (scye - b_mid[1])),
                         (backW + 0.4 * (sideX - backW), scye), (sideX, scye)))
-    back_side = catmull([(sideX, scye), (sideX - 0.8, y_w), (sideX - 0.2, y_h), (sideX + flare, y_L)])
     vent_top = y_L - 38
-    back_hem = [(sideX + flare, y_L), (-5, y_L)]
+    back_side, back_hem = side_and_hem([(sideX, scye), (sideX - 0.8, y_w), (sideX - 0.2, y_h), (sideX + flare, y_L)],
+                                       -1, -5, y_L)
     back_cb = [(-5, y_L), (-5, vent_top), (0, vent_top - 5), (0, cb_rise)]
     back_outline = join(back_neck, back_arm, back_side, back_hem, back_cb)
     piece_list.append(Piece(
@@ -244,26 +290,34 @@ def draft(size):
         lines=[([(0, y_w), (sideX - 0.8, y_w)], "dash", "허리선"),
                ([(0, y_h), (sideX - 0.2, y_h)], "dash", "엉덩이선"),
                ([(0, vent_top - 5), (0, y_L)], "dot", "뒤중심 (트임 꺾임선)")],
-        notches=[b_mid, lerp(b_mid, (sideX, scye), 0.12), (sideX - 0.8, y_w - 2.5), (sideX - 0.8, y_w + 2.5)],
+        notches=[b_mid, point_at(back_arm, plen(back_arm1) + 1.2), (sideX - 0.8, y_w - 2.5), (sideX - 0.8, y_w + 2.5)],
         texts=[(5, y_w - 12, "뒤판 BACK", 1.4), (5, y_w - 9.5, f"사이즈 {size}", 0.9),
                (5, y_w - 7.5, "겉감 2장 · 안감 2장", 0.7),
                (sideX - 6, y_w + 4, "벨트고리 위치", 0.5)]))
 
     # 앞판 (앞중심 x = Wh)
     f_snp = (Wh - fnw, 0)
-    front_neck = bez(f_snp, (Wh - fnw, fnd * 0.55), (Wh - fnw * 0.45, fnd), (Wh, fnd))
     a = math.radians(22)
     sh_len_f = sh_len_b - 0.6
     sp_f = (f_snp[0] - sh_len_f * math.cos(a), sh_len_f * math.sin(a) - pad)
+    uf_sh = unit(f_snp, sp_f)
+    nf_in = perp_toward(uf_sh, want_y=1)                # 옆목점에서 목둘레 방향 (어깨선과 직각)
+    # 뒤 목둘레가 어깨선과 약 97°로 만나므로, 앞은 약 84°로 맞춰 합이 180°에 가깝게
+    c6, s6 = math.cos(math.radians(6)), math.sin(math.radians(6))
+    nk = (nf_in[0] * c6 + uf_sh[0] * s6, nf_in[1] * c6 + uf_sh[1] * s6)
+    front_neck = bez(f_snp, (f_snp[0] + nk[0] * fnd * 0.55, f_snp[1] + nk[1] * fnd * 0.55),
+                     (Wh - fnw * 0.45, fnd), (Wh, fnd))
     f_mid = (Wh - frontW, sp_f[1] + (scye - sp_f[1]) * 0.55)
-    front_arm_out = join(bez(sp_f, (sp_f[0] + 0.5, sp_f[1] + 3), (f_mid[0], f_mid[1] - 4), f_mid),
+    front_arm1 = bez(sp_f, (sp_f[0] + nf_in[0] * 3, sp_f[1] + nf_in[1] * 3), (f_mid[0], f_mid[1] - 4), f_mid)
+    front_arm_out = join(front_arm1,
                          bez(f_mid, (f_mid[0], f_mid[1] + 0.5 * (scye - f_mid[1])),
                              (sideX + 0.55 * (f_mid[0] - sideX), scye), (sideX, scye)))
-    front_side = catmull([(sideX, scye), (sideX + 0.8, y_w), (sideX + 0.2, y_h), (sideX - flare, y_L)])
+    front_side, fh = side_and_hem([(sideX, scye), (sideX + 0.8, y_w), (sideX + 0.2, y_h), (sideX - flare, y_L)],
+                                  1, Wh + DB, y_L)
     ce = (Wh + 2.5, fnd + 0.2)       # 칼라 끝점 (노치)
     lp = (Wh + DB, fnd - 2.0)        # 라펠 끝
     front_edge = [(Wh, fnd), ce, lp, (Wh + DB, y_L)]
-    front_hem = [(Wh + DB, y_L), (sideX - flare, y_L)]
+    front_hem = list(reversed(fh))
     # 둘레: 옆목점 → 어깨 → 진동 → 옆선 → 밑단 → 앞단 → 목둘레
     front_outline = join([f_snp, sp_f], front_arm_out, front_side, list(reversed(front_hem)),
                          list(reversed(front_edge)), list(reversed(front_neck)))
@@ -361,6 +415,34 @@ def draft(size):
     tb0 = (bq + eb, y_at_x(capc, bq + eb))
     tf1, tb1 = (wf - ef, SLg), (wb + eb, SLg)
     front_seam = catmull([tf0, (lerp(tf0, tf1, (y_e - tf0[1]) / (SLg - tf0[1]))[0] + 1.0, y_e), tf1])
+    under_f0, under_f1 = (wf - ef, SLg), (xc - wW / 2, SLg)
+    v1 = (xc + wW / 2 - B, SLg - CH)
+    v2 = (xc - wW / 2, SLg - CH)
+    ang = math.atan2(v1[1], v1[0]) - math.atan2(v2[1], v2[0])
+
+    # 소매 노치: 진동둘레 노치와 같은 위치 (소매산 오그림을 앞 45% · 뒤 55%로 나눠 비례 배분)
+    cap_len = plen(capc)
+    fa_len, ba_len = plen(front_arm_out), plen(back_arm)
+    ease_tot = cap_len - (fa_len + ba_len)
+    ease_f, ease_b = ease_tot * 0.45, ease_tot * 0.55
+    s_shoulder = fa_len + ease_f
+    s_front = (fa_len - plen(front_arm1)) * (fa_len + ease_f) / fa_len
+    s_back1 = cap_len - (ba_len - plen(back_arm1)) * (ba_len + ease_b) / ba_len
+    s_back2 = cap_len - (ba_len - plen(back_arm1) - 1.2) * (ba_len + ease_b) / ba_len
+
+    def sleeve_spot(sv):
+        q = point_at(capc, sv)
+        if fq - ef <= q[0] <= bq + eb:
+            return "top", q
+        if q[0] < fq - ef:
+            return "under", rot((q[0] + B, q[1]), (B, CH), ang)
+        return "under", q
+    sl_notch = {"top": [], "under": [(B, CH)]}          # 밑소매 겨드랑이 = 옆선 위치
+    for sv in (s_shoulder, s_front, s_back1, s_back2):
+        k_, q_ = sleeve_spot(sv)
+        sl_notch[k_].append(q_)
+    p_sh = point_at(capc, s_shoulder)
+    elbow_b = lerp(tb0, tb1, (y_e - tb0[1]) / (SLg - tb0[1]))
     top_outline = join(sub_by_x(capc, fq - ef, bq + eb), [tb0, tb1], [tf1], list(reversed(front_seam)))
     top_hem = [tf1, tb1]
     gx = (tf0[0] + tb0[0]) / 2 + 1
@@ -369,20 +451,15 @@ def draft(size):
         grain=((gx, CH + 4), (gx, SLg - 8)),
         lines=[([(tf0[0] + 1, y_e), (tb0[0] - 0.5, y_e)], "dash", "팔꿈치선"),
                ([(tf1[0], SLg - 6), (tb1[0], SLg - 6)], "dot", "소매 스트랩 위치")],
-        notches=[(xt, 0), (fq - ef + 0.2, y_at_x(capc, fq - ef + 0.2)),
-                 lerp(tb0, tb1, (y_e - tb0[1]) / (SLg - tb0[1]))],
+        notches=sl_notch["top"] + [elbow_b],
         texts=[(tf0[0] + 2.5, CH + 12, "윗소매", 1.2), (tf0[0] + 2.5, CH + 14, "TOP SLEEVE", 0.6),
                (tf0[0] + 2.5, CH + 15.7, f"사이즈 {size}", 0.6),
-               (xt - 1, 2.2, "어깨점", 0.5)]))
+               (p_sh[0] - 1, p_sh[1] + 2.2, "어깨점", 0.5)]))
 
     # 밑소매: 소매 양쪽 겨드랑이 부분을 이어 붙임
-    under_f0, under_f1 = (wf - ef, SLg), (xc - wW / 2, SLg)
     R = Polygon(join(sub_by_x(capc, bq + eb, B), [(xc + wW / 2, SLg), (wb + eb, SLg), tb0]))
     L = join([(0, CH)], sub_by_x(capc, 0, fq - ef), [under_f0, under_f1])
     L = [(p[0] + B, p[1]) for p in L]
-    v1 = (xc + wW / 2 - B, SLg - CH)
-    v2 = (xc - wW / 2, SLg - CH)
-    ang = math.atan2(v1[1], v1[0]) - math.atan2(v2[1], v2[0])
     L = [rot(p, (B, CH), ang) for p in L]
     under_poly = unary_union([R.buffer(0.02), Polygon(L).buffer(0.02)]).buffer(-0.02)
     under_outline = list(under_poly.exterior.coords)
@@ -392,7 +469,7 @@ def draft(size):
         "undersleeve", "밑소매", "겉감 2장 · 안감 2장 · 밑단 심지 5cm", under_outline, fuse="hem",
         hem=([hem_r, hem_l] if hem_r[0] < hem_l[0] else [hem_l, hem_r], SLEEVE_HEM),
         grain=(((ub[0] + ub[2]) / 2, CH + 6), ((ub[0] + ub[2]) / 2, SLg - 8)),
-        notches=[(bq + eb + 0.2, y_at_x(capc, bq + eb + 0.2))],
+        notches=sl_notch["under"] + [elbow_b],
         texts=[(ub[0] + 3, CH + 14, "밑소매", 1.1), (ub[0] + 3, CH + 16, "UNDER SLEEVE", 0.55),
                (ub[0] + 3, CH + 17.5, f"사이즈 {size}", 0.55)]))
 
@@ -489,7 +566,10 @@ def draft(size):
         facing_edge=front_edge, shield_neck=back_neck,
         top_wrist=[tf1, tb1], under_wrist=[(xc - wW / 2, SLg), (wf - ef, SLg), None, (wb + eb, SLg), (xc + wW / 2, SLg)],
     )
-    info.update(dict(sp_b=sp_b, sp_f=sp_f, sideX=sideX, y_w=y_w, y_h=y_h, y_L=y_L, cb_rise=cb_rise,
+    info.update(dict(sleeve_notch_arcs=dict(shoulder=s_shoulder, front=s_front, back1=s_back1, back2=s_back2),
+                     arm_notch_from_side=dict(front=fa_len - plen(front_arm1), back1=ba_len - plen(back_arm1),
+                                              back2=ba_len - plen(back_arm1) - 1.2),
+                     sp_b=sp_b, sp_f=sp_f, sideX=sideX, y_w=y_w, y_h=y_h, y_L=y_L, cb_rise=cb_rise,
                      fnd=fnd, bnw=bnw, fnw=fnw, DB=DB, backW=backW, frontW=frontW, pad=pad))
     info["belt_len"] = round(2 * (2 * (Wh - 1.6)) / 2 + 45)
     return piece_list, info

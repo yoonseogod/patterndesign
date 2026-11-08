@@ -90,7 +90,7 @@ def ease_checks(size, info, neck_line):
     chest_g = garment_circ(info, y_scye + 0.01)
     waist_g = garment_circ(info, info["y_w"])
     hip_g = garment_circ(info, info["y_h"])
-    hem_g = garment_circ(info, info["y_L"] - 0.01)
+    hem_g = garment_circ(info, info["y_L"] - 1.5)
     shoulder_g = 2 * info["sp_b"][0]
     rows = [
         ("가슴둘레", b["chest"], chest_g, (16, 26), "트렌치코트 일반 16~26cm (버버리 켄싱턴 약 10~12)"),
@@ -172,7 +172,7 @@ def render_3d(size, info, path):
     b = body_for(size)
     th = np.linspace(0, 2 * np.pi, 72)
     fig = plt.figure(figsize=(15, 9), dpi=110)
-    garment_y = np.arange(info["scye"] + 0.5, info["y_L"], 1.0)
+    garment_y = np.arange(info["scye"] + 0.5, info["y_L"] - 1.5, 1.0)
 
     def body_at(h):
         hs = [s[0] for s in secs]
