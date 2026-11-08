@@ -391,7 +391,9 @@ def draft(size):
     sh_y = scye - 3
     bs_arm, _ = cut_until(back_arm, lambda p: p[1] >= sh_y)
     h1 = bs_arm[-1]                  # 진동선 끝에서 바로 밑단 시작 (진동 솔기와 일치)
-    shield_hem = catmull([h1, (h1[0] * 0.5, sh_y + 2.2), (0, sh_y + 3)])
+    # 뒤중심(골선)에서 수평이 되도록 반대편 대칭점을 넣어 그린 뒤 뒤중심까지만 사용
+    shield_hem = [q for q in catmull([h1, (h1[0] * 0.5, sh_y + 2.2), (0, sh_y + 3), (-h1[0] * 0.5, sh_y + 2.2)])
+                  if q[0] >= -1e-9]
     shield_outline = join(back_neck, [(bnw, 0), sp_b], bs_arm, [h1], shield_hem, [(0, cb_rise)])
     piece_list.append(Piece(
         "shield", "뒤 스톰실드", "겉감 2장 (골선)", shield_outline, fold_x=0,
