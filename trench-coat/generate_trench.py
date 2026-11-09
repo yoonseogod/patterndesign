@@ -36,6 +36,8 @@ SIZES = {
     "105": dict(chest=102, height=180, neck=41, nape_waist=46.0, coat_len=104, sleeve=61.9),
     "110": dict(chest=106, height=185, neck=42, nape_waist=47.0, coat_len=107, sleeve=63.6),
 }
+CHEST_EASE = 13.0  # 가슴 여유 (셔츠·니트 위에 입는 슬림 트렌치. 재킷 위 넉넉한 오버코트는 20~24)
+CAP_EASE = 2.5     # 소매산 오그림 (면 개버딘은 잘 오그라들지 않아 2~2.5)
 SLEEVE_ADD = 4.5   # 어깨패드 1 + 소매산 부풀림 1.5 + 손목 덮음 2
 
 SA = 1.0        # 기본 시접
@@ -270,24 +272,24 @@ def draft(size):
     piece_list = []
 
     # 몸판 원형 (반쪽, y는 아래로 증가, 옆목점 높이 = 0)
-    Wh = C / 2 + 12                 # 반 가슴둘레 + 여유 12 (총 24)
-    scye = C / 10 + 17.0            # 진동깊이
-    backW = C / 8 + 9.75            # 뒤 품 (남성은 뒤품이 앞품보다 넓다)
-    frontW = C / 8 + 8.75           # 앞 품
+    Wh = (C + CHEST_EASE) / 2       # 반 가슴둘레 + 여유 절반
+    scye = C / 10 + 15.5            # 진동깊이 (몸보다 약 3.5~4.5cm 깊게)
+    backW = C / 8 + 8.0             # 뒤 품 (남성은 뒤품이 앞품보다 넓다)
+    frontW = C / 8 + 7.0            # 앞 품
     sideX = backW + (Wh - backW - frontW) * 0.5
-    bnw = N / 5 + 1.2               # 뒤 목너비
+    bnw = N / 5 + 0.8               # 뒤 목너비
     fnw = bnw - 0.3
-    fnd = N / 5 + 2.5               # 앞 목깊이
+    fnd = N / 5 + 2.0               # 앞 목깊이
     cb_rise = 2.2                    # 뒷목 깊이
     y_w = cb_rise + m["nape_waist"] + 2
     y_h = y_w + 20
     y_L = cb_rise + m["coat_len"]
     DB = 10.0                        # 더블 여밈분
     pad = 0.8                        # 어깨패드 분
-    flare = 3.0
+    flare = 4.0                      # 엉덩이선 → 밑단 옆선 퍼짐 (걸음 여유)
 
     # 뒤판
-    sh_ext = 0.105 * C - 8.75       # 뒤품선 밖으로 나가는 어깨 (사이즈 100 ≈ 1.5)
+    sh_ext = 0.105 * C - 7.25       # 뒤품선 밖으로 나가는 어깨 → 어깨너비 = 몸 + 1.5
     sp_b = (backW + sh_ext, (backW + sh_ext - bnw) * math.tan(math.radians(19)) - pad)
     sh_len_b = math.dist((bnw, 0), sp_b)
     ub_sh = unit((bnw, 0), sp_b)                         # 옆목점 → 어깨점
@@ -301,7 +303,7 @@ def draft(size):
                     bez(b_mid, (backW, b_mid[1] + 0.55 * (scye - b_mid[1])),
                         (backW + 0.4 * (sideX - backW), scye), (sideX, scye)))
     vent_top = y_L - 38
-    back_side, back_hem = side_and_hem([(sideX, scye), (sideX - 0.8, y_w), (sideX - 0.2, y_h), (sideX + flare, y_L)],
+    back_side, back_hem = side_and_hem([(sideX, scye), (sideX - 0.8, y_w), (sideX + 0.6, y_h), (sideX + flare, y_L)],
                                        -1, -5, y_L)
     back_cb = [(-5, y_L), (-5, vent_top), (0, vent_top - 5), (0, cb_rise)]
     back_outline = join(back_neck, back_arm, back_side, back_hem, back_cb)
@@ -309,7 +311,7 @@ def draft(size):
         "back", "뒤판", "겉감 2장 · 안감 2장 (좌우 대칭)", back_outline, hem=(list(reversed(back_hem)), HEM),
         grain=((12, 30), (12, 80)),
         lines=[([(0, y_w), (sideX - 0.8, y_w)], "dash", "허리선"),
-               ([(0, y_h), (sideX - 0.2, y_h)], "dash", "엉덩이선"),
+               ([(0, y_h), (sideX + 0.6, y_h)], "dash", "엉덩이선"),
                ([(0, y_L), (0, vent_top - 5)], "dot", "뒤중심 (트임 꺾임선)")],   # 글자는 밑단 쪽에
         notches=[b_mid, point_at(back_arm, plen(back_arm1) + 1.2), (sideX - 0.8, y_w - 2.5), (sideX - 0.8, y_w + 2.5)],
         texts=[(5, y_w - 12, "뒤판 BACK", 1.4), (5, y_w - 9.5, f"사이즈 {size}", 0.9),
@@ -332,7 +334,7 @@ def draft(size):
     front_arm_out = join(front_arm1,
                          bez(f_mid, (f_mid[0], f_mid[1] + 0.5 * (scye - f_mid[1])),
                              (sideX + 0.55 * (f_mid[0] - sideX), scye), (sideX, scye)))
-    front_side, fh = side_and_hem([(sideX, scye), (sideX + 0.8, y_w), (sideX + 0.2, y_h), (sideX - flare, y_L)],
+    front_side, fh = side_and_hem([(sideX, scye), (sideX + 0.8, y_w), (sideX - 0.6, y_h), (sideX - flare, y_L)],
                                   1, Wh + DB, y_L)
     ce = (Wh + 2.5, fnd + 0.2)       # 칼라 끝점 (노치)
     lp = (Wh + DB, fnd - 2.0)        # 라펠 끝
@@ -370,7 +372,7 @@ def draft(size):
         grain=((Wh - 6, 32), (Wh - 6, 88)),
         lines=[([(Wh, fnd), (Wh, y_L)], "dashdot", "앞중심 CF"),
                ([(sideX + 0.8, y_w), (Wh + DB, y_w)], "dash", "허리선"),
-               ([(sideX + 0.2, y_h), (Wh + DB, y_h)], "dash", "엉덩이선"),
+               ([(sideX - 0.6, y_h), (Wh + DB, y_h)], "dash", "엉덩이선"),
                (clip_line([(Wh + DB, rows_y[1] + 3), (f_snp[0] + 1.2, 1.0)], front_outline), "dot", "라펠 꺾임선"),
                (pocket, "solid", "주머니 웰트 위치"),
                *holes,
@@ -402,7 +404,7 @@ def draft(size):
     gun_outline = join([f_snp, sp_f], arm_part, gun_free[1:], list(reversed(neck_pts)))
     piece_list.append(Piece(
         "gunflap", "건 플랩", "겉감 2장 (오른쪽 1벌)", gun_outline,
-        grain=((Wh - 6.5, y_at_x(front_neck, Wh - 6.5) + 1.5), (Wh - 6.5, yg - 0.5)),
+        grain=((Wh - 6.5, y_at_x(front_neck, Wh - 6.5) + 3.0), (Wh - 6.5, yg - 0.5)),   # 목둘레 시접 글자 피함
         texts=[(sp_f[0] + 4.5, yg - 5, "건 플랩 GUN FLAP", 0.8), (sp_f[0] + 4.5, yg - 3.6, f"사이즈 {size}", 0.55)]))
 
     # 뒤 스톰실드 (골선)
@@ -421,8 +423,8 @@ def draft(size):
 
     # 소매 (2장 소매)
     AH = plen(front_arm_out) + plen(back_arm)
-    B = 0.2 * C + 20
-    wW = 0.22 * C + 13
+    B = 0.2 * C + 18                 # 위팔 (몸 + 약 6.5)
+    wW = 0.22 * C + 11               # 소매부리
     SLg = m["sleeve"] + SLEEVE_ADD
     xt = B * 0.52
 
@@ -432,7 +434,7 @@ def draft(size):
     lo, hi = 8, 26
     for _ in range(40):
         mid = (lo + hi) / 2
-        if plen(cap(mid)) < AH + 3.0:
+        if plen(cap(mid)) < AH + CAP_EASE:
             lo = mid
         else:
             hi = mid

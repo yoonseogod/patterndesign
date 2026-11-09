@@ -1,6 +1,7 @@
 # 남성 더블브레스티드 트렌치코트 패턴 (A4 분할 인쇄)
 
 클래식 트렌치코트(더블 여밈, 건 플랩, 뒤 스톰실드, 견장, 소매 스트랩, 벨트) 남성 패턴입니다.
+가슴 여유 13cm(셔츠·니트 위에 입는 슬림한 실루엣). `generate_trench.py`의 `CHEST_EASE`로 바꿀 수 있습니다.
 실제 크기(1:1)로 A4에 나눠 인쇄해 붙여 쓰도록 만들었습니다.
 
 **기본 파일은 시접 없는 완성선 패턴**이고, 각 선 안쪽에 빨간 글자로 시접 폭을 적어 두었습니다
@@ -11,10 +12,10 @@
 
 | 사이즈 | 가슴둘레 | 키 | 완성 가슴둘레 | 옷길이 | A4 파일 | 복사실용 1장 (폭 76cm) |
 |---|---|---|---|---|---|---|
-| 95  | 94  | 170 | 118 | 98  | `pdf/trench_men_95_A4.pdf`  | `pdf/trench_men_95_fullsize.pdf` |
-| 100 | 98  | 175 | 122 | 101 | `pdf/trench_men_100_A4.pdf` | `pdf/trench_men_100_fullsize.pdf` |
-| 105 | 102 | 180 | 126 | 104 | `pdf/trench_men_105_A4.pdf` | `pdf/trench_men_105_fullsize.pdf` |
-| 110 | 106 | 185 | 130 | 107 | `pdf/trench_men_110_A4.pdf` | `pdf/trench_men_110_fullsize.pdf` |
+| 95  | 94  | 170 | 107 | 98  | `pdf/trench_men_95_A4.pdf`  | `pdf/trench_men_95_fullsize.pdf` |
+| 100 | 98  | 175 | 111 | 101 | `pdf/trench_men_100_A4.pdf` | `pdf/trench_men_100_fullsize.pdf` |
+| 105 | 102 | 180 | 115 | 104 | `pdf/trench_men_105_A4.pdf` | `pdf/trench_men_105_fullsize.pdf` |
+| 110 | 106 | 185 | 119 | 107 | `pdf/trench_men_110_A4.pdf` | `pdf/trench_men_110_fullsize.pdf` |
 
 ## 인쇄 방법
 1. 인쇄 설정에서 **실제 크기(100%)** 선택, '페이지에 맞춤' 끄기.
