@@ -47,6 +47,18 @@ def measures(s):
         "목둘레 (반, 칼라 끝까지)": info["Lc"],
         "앞판 폭": f.poly.bounds[2] - f.poly.bounds[0],
         "뒤판 폭": b.poly.bounds[2] - b.poly.bounds[0],
+        # 부속 (주머니 크기·위치는 일부러 모든 사이즈 동일 → 증가 0 허용)
+        "단추 행 간격": sorted({round(d[1], 3) for d in f.dots if d[2] > 1})[1] - sorted({round(d[1], 3) for d in f.dots if d[2] > 1})[0],
+        "건 플랩 폭": piece(s, "gunflap").poly.bounds[2] - piece(s, "gunflap").poly.bounds[0],
+        "건 플랩 높이": piece(s, "gunflap").poly.bounds[3] - piece(s, "gunflap").poly.bounds[1],
+        "스톰실드 폭": piece(s, "shield").poly.bounds[2] - piece(s, "shield").poly.bounds[0],
+        "스톰실드 높이": piece(s, "shield").poly.bounds[3] - piece(s, "shield").poly.bounds[1],
+        "견장 길이": piece(s, "epaulette").poly.bounds[2],
+        "소매 스트랩 길이": piece(s, "cuffstrap").poly.bounds[2],
+        "벨트 길이": info["belt_len"],
+        "주머니 입구": piece(s, "welt").poly.bounds[2],
+        "주머니감 폭": piece(s, "bag").poly.bounds[2],
+        "칼라 바깥선": G.plen(S["fall_outer"]),
     }
 
 
@@ -58,7 +70,7 @@ allok = True
 for k in M[SIZES[0]]:
     vals = [M[s][k] for s in SIZES]
     steps = [vals[i + 1] - vals[i] for i in range(len(vals) - 1)]
-    mono = all(d > 0 for d in steps)
+    mono = all(d >= -1e-6 for d in steps)
     even = (max(steps) - min(steps)) <= max(0.25, 0.15 * abs(sum(steps) / len(steps)))
     ok = mono and even
     allok &= ok

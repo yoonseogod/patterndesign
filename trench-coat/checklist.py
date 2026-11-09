@@ -89,6 +89,10 @@ def tool_rows(size):
     fails = [l for l in out.splitlines() if l.startswith("FAIL")]
     tot = len([l for l in out.splitlines() if re.match(r"(PASS|FAIL) ", l)])
     rows.append(("L. 출력물 (A4 시접 포함)", f"시접 포함 PDF {tot}항목", OK if not fails else BAD, "; ".join(fails)))
+    out = run_tool(["review_grading.py"])
+    bad_g = [l for l in out.splitlines() if "확인 필요" in l]
+    rows.append(("M2. 사이즈 간", "치수·부속이 사이즈마다 고르게 변하고 겹쳐 그린 선이 엇갈리지 않음", OK if not bad_g else BAD,
+                 "; ".join(bad_g)[:200]))
     for tool, cat in (("review_draft.py", "C/D/E/F. 제도"), ("verify_fit.py", "B/N. 봉제선·여유")):
         out = run_tool([tool, size])
         for line in out.splitlines():

@@ -102,6 +102,19 @@ def cut_until(pts, pred):
     return out, len(pts) - 1
 
 
+def cut_at(pts, axis, value):
+    """선을 시작부터 axis(0=x, 1=y) 좌표가 value에 닿는 정확한 교차점까지 자른다 (보간)."""
+    out = [pts[0]]
+    for i in range(1, len(pts)):
+        a, b = pts[i - 1], pts[i]
+        if (a[axis] - value) * (b[axis] - value) <= 0 and a[axis] != b[axis]:
+            t = (value - a[axis]) / (b[axis] - a[axis])
+            out.append((a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])))
+            return out
+        out.append(b)
+    return out
+
+
 def sub_by_x(pts, x0, x1):
     """x에 대해 단조인 곡선에서 x0~x1 구간."""
     def interp(x):
@@ -391,9 +404,9 @@ def draft(size):
                        bez((pb[0] + 3, bag_yb), (pb[0] + 1.5, bag_yb), (pb[0], bag_yb - 1.5), pb))
     yg = sp_f[1] + 14
     # 건 플랩 모양 (위치선과 조각이 같은 점을 쓰도록 여기서 한 번만 정의)
-    arm_part, _ = cut_until(front_arm_out, lambda p: p[1] >= yg)
+    arm_part = cut_at(front_arm_out, 1, yg)
     g1 = arm_part[-1]
-    neck_pts = [p for p in front_neck if p[0] <= Wh - 3]
+    neck_pts = cut_at(front_neck, 0, Wh - 3)
     gun_free = [g1, (g1[0] + 8, yg + 3.0), (Wh - 4, yg + 2), (Wh - 3.2, (yg + 2 + neck_pts[-1][1]) / 2), neck_pts[-1]]
     piece_list.append(Piece(
         "front", "앞판", "겉감 2장 · 안감 2장 (좌우 대칭)", front_outline, hem=(list(reversed(front_hem)), HEM),
@@ -438,7 +451,7 @@ def draft(size):
 
     # 뒤 스톰실드 (골선)
     sh_y = scye - 3
-    bs_arm, _ = cut_until(back_arm, lambda p: p[1] >= sh_y)
+    bs_arm = cut_at(back_arm, 1, sh_y)
     h1 = bs_arm[-1]                  # 진동선 끝에서 바로 밑단 시작 (진동 솔기와 일치)
     # 뒤중심(골선)에서 수평이 되도록 반대편 대칭점을 넣어 그린 뒤 뒤중심까지만 사용
     shield_hem = [q for q in catmull([h1, (h1[0] * 0.5, sh_y + 2.2), (0, sh_y + 3), (-h1[0] * 0.5, sh_y + 2.2)])
