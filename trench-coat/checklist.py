@@ -194,6 +194,46 @@ def new_rows(size):
     add("G. 부속 위치", "칼라에 목 여밈 탭 단추 위치", bool(P["collar"].dots) and
         P["collar"].poly.contains(Point(P["collar"].dots[0][:2])))
 
+    # M. 조각 안 표시
+    out_lines, out_dots, off_notch, no_size = [], [], [], []
+    for p in pieces:
+        poly = p.poly.buffer(0.05)
+        edge = LineString(p.outline + [p.outline[0]])
+        for pts, st, lab in p.lines:
+            if not poly.contains(LineString(pts)):
+                out_lines.append(f"{p.name}:{lab or st}")
+        for (x, y, r) in p.dots:
+            on_seam = p.key == "front" and r < 1.0          # 견장 단추는 어깨선 위에 일부러 걸침
+            if not on_seam and not poly.contains(Point(x, y).buffer(r)):
+                out_dots.append(p.name)
+        for n in p.notches:
+            if edge.distance(Point(n)) > 0.1:
+                off_notch.append(p.name)
+        if not any(size in t[2] for t in p.texts):
+            no_size.append(p.name)
+    add("M. 조각 안 표시", "안쪽 선이 조각 밖으로 나가지 않음", not out_lines, ", ".join(out_lines))
+    add("M. 조각 안 표시", "단추·구멍 표시가 조각 안 (견장 단추 제외)", not out_dots, ", ".join(out_dots))
+    add("M. 조각 안 표시", "노치가 외곽선 위", not off_notch, ", ".join(off_notch))
+    add("M. 조각 안 표시", "모든 조각에 사이즈 표기", not no_size, ", ".join(no_size))
+    gf = [l for l in P["front"].lines if "건플랩" in l[2]][0][0]
+    gedge = LineString(P["gunflap"].outline + [P["gunflap"].outline[0]]).buffer(0.02)
+    add("G. 부속 위치", "앞판 건 플랩 위치선 = 건 플랩 조각 테두리", gedge.contains(LineString(gf)))
+
+    # L. 표지·글꼴
+    import pdfplumber
+    pdfp = os.path.join(HERE, "pdf", f"trench_men_{size}_A4.pdf")
+    with pdfplumber.open(pdfp) as pdf:
+        over = []
+        for k in (0, 1):
+            pg = pdf.pages[k]
+            for ch in pg.chars:
+                if ch["x0"] < 28 or ch["x1"] > pg.width - 28 or ch["top"] < 28 or ch["bottom"] > pg.height - 28:
+                    over.append(f"{k + 1}쪽 '{ch['text']}'")
+    add("L. 표지", "안내 1·2쪽 글자가 여백 1cm 안에 들어감", not over, " ".join(over[:5]))
+    fonts = subprocess.run(["pdffonts", pdfp], capture_output=True, text=True).stdout.splitlines()[2:]
+    used_not_emb = [l.split()[0] for l in fonts if "Nanum" in l and " no " in l]
+    add("L. 표지", "한글 글꼴이 PDF에 포함됨", any("Nanum" in l for l in fonts) and not used_not_emb)
+
     # H. 올 방향 (전 조각에 식서 있음)
     add("H. 올 방향", "모든 조각에 식서 화살표", all(p.grain for p in pieces))
 

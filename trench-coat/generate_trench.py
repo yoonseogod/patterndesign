@@ -174,6 +174,15 @@ def vgrain(outline, x, margin=0.9):
     return ((x, y0), (x, y1))
 
 
+def clip_line(pts, outline):
+    """선을 조각 안쪽 부분만 남긴다 (가장 긴 구간)."""
+    from shapely.geometry import LineString as _LS
+    g = Polygon(outline).intersection(_LS(pts))
+    parts = list(getattr(g, "geoms", [g]))
+    parts = [q for q in parts if q.geom_type == "LineString" and not q.is_empty]
+    return list(max(parts, key=lambda q: q.length).coords)
+
+
 def lerp(a, b, t):
     return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
@@ -351,17 +360,21 @@ def draft(size):
     pocket = [pa, pb, (pb[0] + perp[0] * 4.5, pb[1] + perp[1] * 4.5),
               (pa[0] + perp[0] * 4.5, pa[1] + perp[1] * 4.5), pa]
     yg = sp_f[1] + 14
-    gun_line_pts = [(Wh - 4, yg + 2), (Wh - 4, fnd)]
+    # 건 플랩 모양 (위치선과 조각이 같은 점을 쓰도록 여기서 한 번만 정의)
+    arm_part, _ = cut_until(front_arm_out, lambda p: p[1] >= yg)
+    g1 = arm_part[-1]
+    neck_pts = [p for p in front_neck if p[0] <= Wh - 3]
+    gun_free = [g1, (g1[0] + 8, yg + 3.0), (Wh - 4, yg + 2), (Wh - 3.2, (yg + 2 + neck_pts[-1][1]) / 2), neck_pts[-1]]
     piece_list.append(Piece(
         "front", "앞판", "겉감 2장 · 안감 2장 (좌우 대칭)", front_outline, hem=(list(reversed(front_hem)), HEM),
         grain=((Wh - 6, 32), (Wh - 6, 88)),
         lines=[([(Wh, fnd), (Wh, y_L)], "dashdot", "앞중심 CF"),
                ([(sideX + 0.8, y_w), (Wh + DB, y_w)], "dash", "허리선"),
                ([(sideX + 0.2, y_h), (Wh + DB, y_h)], "dash", "엉덩이선"),
-               ([(f_snp[0] + 1.2, 1.0), (Wh + DB, rows_y[1] + 3)], "dot", "라펠 꺾임선"),
+               (clip_line([(Wh + DB, rows_y[1] + 3), (f_snp[0] + 1.2, 1.0)], front_outline), "dot", "라펠 꺾임선"),
                (pocket, "solid", "주머니 웰트 위치"),
                *holes,
-               ([(sp_f[0] + 1, yg + 0.5), (Wh - 4, yg + 2)] + gun_line_pts[1:], "dot", "건플랩 위치 (오른쪽)")],
+               (gun_free, "dot", "건플랩 위치 (오른쪽)")],
         dots=btn + [(ep_btn[0], ep_btn[1], 0.8)],
         notches=[f_mid, ce, (sideX + 0.8, y_w - 2.5), (sideX + 0.8, y_w + 2.5)],
         texts=[(sideX + 3, y_w - 14, "앞판 FRONT", 1.4), (sideX + 3, y_w - 11.5, f"사이즈 {size}", 0.9),
@@ -385,12 +398,8 @@ def draft(size):
                (Wh + 0.5, y_w + 17.7, f"사이즈 {size}", 0.6),
                (Wh + 7.3 - 2.6, rows_y[4] + 2.2, "단춧구멍", 0.42)]))
 
-    # 건 플랩 (오른쪽 앞)
-    arm_part, _ = cut_until(front_arm_out, lambda p: p[1] >= yg)
-    g1 = arm_part[-1]
-    neck_pts = [p for p in front_neck if p[0] <= Wh - 3]
-    gun_outline = join([f_snp, sp_f], arm_part, [(g1[0] + 8, yg + 3.0), (Wh - 4, yg + 2)],
-                       [(Wh - 3.2, (yg + 2 + neck_pts[-1][1]) / 2)], list(reversed(neck_pts)))
+    # 건 플랩 (오른쪽 앞): 앞판 위치선과 같은 gun_free 점 사용
+    gun_outline = join([f_snp, sp_f], arm_part, gun_free[1:], list(reversed(neck_pts)))
     piece_list.append(Piece(
         "gunflap", "건 플랩", "겉감 2장 (오른쪽 1벌)", gun_outline,
         grain=((Wh - 6.5, y_at_x(front_neck, Wh - 6.5) + 1.5), (Wh - 6.5, yg - 0.5)),
@@ -472,8 +481,8 @@ def draft(size):
     piece_list.append(Piece(
         "topsleeve", "윗소매", "겉감 2장 · 안감 2장 · 밑단 심지 5cm", top_outline, hem=(top_hem, SLEEVE_HEM), fuse="hem",
         grain=((gx, CH + 4), (gx, SLg - 8)),
-        lines=[([(tf0[0] + 1, y_e), (tb0[0] - 0.5, y_e)], "dash", "팔꿈치선"),
-               ([(tf1[0], SLg - 6), (tb1[0], SLg - 6)], "dot", "소매 스트랩 위치")],
+        lines=[(clip_line([(tf0[0] - 5, y_e), (tb0[0] + 5, y_e)], top_outline), "dash", "팔꿈치선"),
+               (clip_line([(tf1[0] - 5, SLg - 6), (tb1[0] + 5, SLg - 6)], top_outline), "dot", "소매 스트랩 위치")],
         notches=sl_notch["top"] + [elbow_b],
         texts=[(tf0[0] + 2.5, CH + 12, "윗소매", 1.2), (tf0[0] + 2.5, CH + 14, "TOP SLEEVE", 0.6),
                (tf0[0] + 2.5, CH + 15.7, f"사이즈 {size}", 0.6),
@@ -592,7 +601,7 @@ def draft(size):
     piece_list.append(Piece("belttip", "벨트 끝 본", "본 (재단 안내 참조)", belt_tip,
                             grain=((2, 2.5), (18, 2.5)),
                             texts=[(1.5, 1.4, "벨트 끝 본 — 벨트 끝 모양을 옮겨 그리세요", 0.45),
-                                   (1.5, 4.1, "완성 폭 5cm", 0.45)]))
+                                   (1.5, 4.1, f"완성 폭 5cm · 사이즈 {size}", 0.45)]))
 
     # 시접 폭 표기 (선 위의 한 점 → 그 선 안쪽에 글자)
     mid = lambda pts: pts[len(pts) // 2]
