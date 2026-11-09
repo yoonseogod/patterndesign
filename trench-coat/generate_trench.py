@@ -213,15 +213,36 @@ class Piece:
         poly = Polygon(self.outline).buffer(0)
         cut = poly.buffer(self.sa, join_style=2, mitre_limit=2.5) if (self.sa > 0 and not NET) else poly
         if self.hem and not NET:
+            # 밑단 시접: 밑단선을 법선 방향으로 depth만큼 내리고, 양옆은 솔기를 밑단선에 대해 거울로 뒤집은 방향
+            # (접어 올렸을 때 시접 가장자리가 솔기와 정확히 겹치도록)
             hp, depth = self.hem
-            s = self.sa
-            a, b = hp[0], hp[-1]
-            strip = Polygon([(a[0] - s * (1 if a[0] < b[0] else -1), a[1])] + list(hp) +
-                            [(b[0] + s * (1 if a[0] < b[0] else -1), b[1]),
-                             (b[0] + s * (1 if a[0] < b[0] else -1), b[1] + depth)] +
-                            [(p[0], p[1] + depth) for p in reversed(hp)] +
-                            [(a[0] - s * (1 if a[0] < b[0] else -1), a[1] + depth)]).buffer(0)
-            cut = unary_union([cut, strip])
+            ol = self.outline
+            ends = []
+            for end, nxt in ((hp[0], hp[1]), (hp[-1], hp[-2])):
+                i = min(range(len(ol)), key=lambda k: math.dist(ol[k], end))
+                nb = [ol[(i - 1) % len(ol)], ol[(i + 1) % len(ol)]]
+                seam_pt = max(nb, key=lambda q: min(math.dist(q, h) for h in hp))
+                d, h = unit(end, seam_pt), unit(end, nxt)
+                dot = d[0] * h[0] + d[1] * h[1]
+                dm = (2 * dot * h[0] - d[0], 2 * dot * h[1] - d[1])
+                n = perp_toward(h, want_y=1)
+                t = depth / max(1e-6, dm[0] * n[0] + dm[1] * n[1])
+                ends.append((end[0] + dm[0] * t, end[1] + dm[1] * t))
+            low = []
+            for k, q in enumerate(hp):
+                a_, b_ = hp[max(0, k - 1)], hp[min(len(hp) - 1, k + 1)]
+                nn = perp_toward(unit(a_, b_), want_y=1)
+                low.append((q[0] + nn[0] * depth, q[1] + nn[1] * depth))
+            low[0], low[-1] = ends[0], ends[1]
+            strip = Polygon(list(hp) + list(reversed(low))).buffer(0)
+            far = 1e4
+            above = Polygon([(low[0][0] - far, low[0][1])] + low + [(low[-1][0] + far, low[-1][1]),
+                            (low[-1][0] + far, -far), (low[0][0] - far, -far)]).buffer(0)
+            if not above.is_valid or above.area < 1:
+                above = Polygon([(low[0][0] + far, low[0][1])] + low + [(low[-1][0] - far, low[-1][1]),
+                                (low[-1][0] - far, -far), (low[0][0] + far, -far)]).buffer(0)
+            grown = unary_union([cut, strip.buffer(self.sa, join_style=2, mitre_limit=2.5)])
+            cut = unary_union([cut, grown.intersection(above)])
         if self.fold_x is not None:
             minx, miny, maxx, maxy = cut.bounds
             cut = cut.intersection(box(self.fold_x, miny - 1, maxx + 1, maxy + 1))
@@ -302,7 +323,7 @@ def draft(size):
     back_arm = join(back_arm1,
                     bez(b_mid, (backW, b_mid[1] + 0.55 * (scye - b_mid[1])),
                         (backW + 0.4 * (sideX - backW), scye), (sideX, scye)))
-    vent_top = y_L - 38
+    vent_top = y_h + 3.0              # 뒤트임은 엉덩이선 3cm 아래에서 열림 (위로 올라가면 서 있어도 벌어짐)
     back_side, back_hem = side_and_hem([(sideX, scye), (sideX - 0.8, y_w), (sideX + 0.6, y_h), (sideX + flare, y_L)],
                                        -1, -5, y_L)
     back_cb = [(-5, y_L), (-5, vent_top), (0, vent_top - 5), (0, cb_rise)]
@@ -1091,7 +1112,7 @@ def cover_page(c, size, info, pieces, rows, used):
     c.setFont("KR", 8.6)
     legend = [("굵은 실선 = 완성선(박음선). 시접은 직접 그려 주세요 — 빨간 글자가 그 선의 시접 폭"
                if NET else "굵은 실선 = 재단선 (시접 포함: 기본 1cm, 몸판·소매 밑단 4cm)"),
-              ("시접: 기본 1cm · 옆선·뒤중심 1.5cm · 몸판·소매 밑단 4cm · 골선은 시접 없음" if NET
+              ("시접: 기본 1cm · 옆선·뒤중심 1.5cm · 몸판·소매 밑단 4cm · 골선은 시접 없음. 밑단 시접 양옆은 솔기를 밑단선에 대해 뒤집은 방향으로" if NET
                else "점선 = 완성선(박음선)"),
               "짧은 눈금 = 맞춤 표시(노치) · 양방향 화살표 = 식서(올) 방향",
               "빨간 굵은 선 = 골선 (원단을 접어서 재단, 시접 없음) · 원 = 단추 위치",

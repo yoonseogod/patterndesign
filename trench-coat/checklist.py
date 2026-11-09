@@ -40,6 +40,38 @@ def ang_at(pts_a, pts_b, d=0.5):
     return math.degrees(math.acos(max(-1, min(1, u[0] * v[0] + u[1] * v[1]))))
 
 
+def hem_mirror_errors(size):
+    G.NET = False
+    try:
+        ps, _ = G.draft(size)
+    finally:
+        G.NET = True
+    out = []
+    for p in ps:
+        if not p.hem:
+            continue
+        hp, depth = p.hem
+        ol = p.outline
+        for end, nxt_hem in ((hp[0], hp[1]), (hp[-1], hp[-2])):
+            i = min(range(len(ol)), key=lambda k: math.dist(ol[k], end))
+            nb = [ol[(i - 1) % len(ol)], ol[(i + 1) % len(ol)]]
+            seam_pt = max(nb, key=lambda q: min(math.dist(q, h) for h in hp))   # 밑단이 아닌 쪽 이웃 = 솔기
+            d = G.unit(end, seam_pt)                     # 솔기 방향(위로)
+            h = G.unit(end, nxt_hem)                     # 밑단 방향(안쪽)
+            dot = d[0] * h[0] + d[1] * h[1]
+            dm = (2 * dot * h[0] - d[0], 2 * dot * h[1] - d[1])  # 밑단선에 대한 거울
+            n = G.perp_toward(h, want_y=1)
+            t = depth / max(1e-6, dm[0] * n[0] + dm[1] * n[1])
+            C = (end[0] + dm[0] * t, end[1] + dm[1] * t)  # 접어 올렸을 때 솔기와 맞는 시접 모서리(완성선 기준)
+            out_dir = G.perp_toward(dm, want_x=(end[0] - nxt_hem[0]))
+            target = (C[0] + out_dir[0] * p.sa, C[1] + out_dir[1] * p.sa)
+            # 재단선이 target 점을 지나야 함: 목표점과 재단 외곽선 거리
+            err = p.cut.exterior.distance(Point(target))
+            out.append((p.name, round(err, 2)))
+    return out
+
+
+
 def run_tool(args):
     r = subprocess.run([sys.executable] + args, cwd=HERE, capture_output=True, text=True)
     return r.stdout + r.stderr
@@ -303,6 +335,8 @@ def new_rows(size):
     add("Q. 시접 포함 재단선", "완성선 둘레 어디서나 시접 ≥ 1cm (골선 제외)", not thin, ", ".join(thin))
     add("Q. 시접 포함 재단선", "밑단 시접 4cm 확보", not hem_short, ",".join(hem_short))
     add("Q. 시접 포함 재단선", "골선 너머로 시접이 붙지 않음", not past_fold, ",".join(past_fold))
+    herr = [f"{n} {e}" for n, e in hem_mirror_errors(size) if e > 0.1]
+    add("Q. 시접 포함 재단선", "밑단 시접을 접어 올리면 양옆이 솔기와 겹침 (거울 방향, ±1mm)", not herr, ", ".join(herr))
 
     # R. 인쇄 안전 여백 · 배치도
     with pdfplumber.open(pdfp) as pdf:
@@ -321,6 +355,12 @@ def new_rows(size):
         map_shapes = len([c for c in pdf.pages[1].curves]) + len([r for r in pdf.pages[1].rects if r["width"] < 200])
     add("R. 인쇄", "모든 쪽의 글자가 종이 끝에서 5mm 이상", not edge, ",".join(edge[:5]))
     add("R. 인쇄", "2쪽 배치도에 조각이 모두 그려짐 (조각 수 이상)", map_shapes >= len(pieces), f"{map_shapes} / {len(pieces)}")
+
+    # S3. 뒤트임: 열림 시작이 엉덩이선 아래 0~6cm
+    cbx = [q for q in P["back"].outline if abs(q[0] + 5) < 0.01]
+    vt = min(q[1] for q in cbx)
+    add("S3. 뒤트임", "트임이 엉덩이선 아래 0~6cm에서 시작", 0 <= vt - info["y_h"] <= 6, f"{vt - info['y_h']:+.1f}")
+    add("S3. 뒤트임", "트임 길이 25~40cm", 25 <= info["y_L"] - vt <= 40, f"{info['y_L'] - vt:.1f}")
 
     # S2. 팔꿈치선 = 몸의 팔꿈치 (윗소매 '팔꿈치선' 높이, 소매산 꼭대기 기준)
     el = [l for l in P["topsleeve"].lines if l[2] == "팔꿈치선"][0][0]
