@@ -102,7 +102,37 @@ def m_gun_line(ps, info):
 def m_thin_sa(ps, info):
     b = P(ps, "back"); b.sa = 0.5; rebuild(b)
 
+def m_bag_shape(ps, info):
+    b = P(ps, "bag"); b.outline = [(x * 1.1, y) for x, y in b.outline]; rebuild(b)
+
+def m_bag_facing(ps, info):
+    f = P(ps, "front")
+    f.lines = [([(x + 3, y) for x, y in pts] if lab == "주머니감 위치" else pts, st, lab) for pts, st, lab in f.lines]
+
+def m_elbow(ps, info):
+    t = P(ps, "topsleeve")
+    t.lines = [([(x, y + 5) for x, y in pts] if lab == "팔꿈치선" else pts, st, lab) for pts, st, lab in t.lines]
+
+def m_vent(ps, info):
+    b = P(ps, "back")
+    b.outline = [(x, y - 8) if (x < -4.9 and y < info["y_L"] - 1) else (x, y) for x, y in b.outline]; rebuild(b)
+
+def m_fuse_band(ps, info):
+    t = P(ps, "topsleeve"); t.fuse_poly = t.fuse_poly.buffer(0.6).intersection(t.cut)
+
+def m_hem_mirror(ps, info):
+    from shapely import affinity
+    b = P(ps, "back")
+    if not G.NET:                       # 시접 포함 버전 재단선만 0.4cm 밀어 밑단 시접 모서리를 어긋나게
+        b.cut = affinity.translate(b.cut, 0.4, 0)
+
 MUTATIONS = [
+    ("주머니감 조각 모양이 위치선과 다름", m_bag_shape, ["주머니감 조각"], False),
+    ("주머니감이 안단까지 들어감", m_bag_facing, ["안단 안쪽선"], False),
+    ("팔꿈치선 5cm 아래로", m_elbow, ["팔꿈치선"], False),
+    ("뒤트임이 엉덩이선 위로", m_vent, ["트임"], False),
+    ("소매 심지 띠가 넓어짐", m_fuse_band, ["심지 띠"], False),
+    ("시접 포함 밑단 시접 어긋남", m_hem_mirror, ["접어 올리면"], False),
     ("시접 포함 버전 뒤판 시접 0.5cm", m_thin_sa, ["시접 ≥ 1cm"], False),
     ("견장 구멍을 1.5cm 옮김", m_ep_hole, ["견장 구멍 위치"], False),
     ("뒤판 옆선 시접 표기 삭제", m_sa_label, ["시접 표기가 있음", "1.5cm 표기"], True),

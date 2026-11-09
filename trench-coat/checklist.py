@@ -331,6 +331,16 @@ def new_rows(size):
                 if ch["x0"] < 28 or ch["x1"] > pg.width - 28 or ch["top"] < 28 or ch["bottom"] > pg.height - 28:
                     over.append(f"{k + 1}쪽 '{ch['text']}'")
     add("L. 표지", "안내 1·2쪽 글자가 여백 1cm 안에 들어감", not over, " ".join(over[:5]))
+    with pdfplumber.open(pdfp) as pdf:
+        legend = (pdf.pages[0].extract_text() or "").replace(" ", "")
+    need = {"dash": "파선", "dot": "점선", "dashdot": "일점쇄선", "solid": "단춧구멍"}
+    used_styles = {st for p in pieces for _, st, _ in p.lines}
+    missing_kw = [need[st] for st in used_styles if need.get(st, "?") not in legend]
+    for kw, cond in (("노치", any(p.notches for p in pieces)), ("식서", True), ("골선", any(p.fold_x is not None for p in pieces)),
+                     ("단추", any(p.dots for p in pieces)), ("심지", any(p.fuse for p in pieces)), ("완성선", True)):
+        if cond and kw not in legend:
+            missing_kw.append(kw)
+    add("L. 표지", "패턴에 쓰인 선·기호가 모두 '선 보는 법'에 설명됨", not missing_kw, ",".join(missing_kw))
     fonts = subprocess.run(["pdffonts", pdfp], capture_output=True, text=True).stdout.splitlines()[2:]
     used_not_emb = [l.split()[0] for l in fonts if "Nanum" in l and " no " in l]
     add("L. 표지", "한글 글꼴이 PDF에 포함됨", any("Nanum" in l for l in fonts) and not used_not_emb)
