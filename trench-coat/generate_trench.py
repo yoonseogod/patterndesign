@@ -653,7 +653,8 @@ def draft(size):
         facing_edge=front_edge, shield_neck=back_neck,
         top_wrist=[tf1, tb1], under_wrist=[hem_l, hem_r], under_front_rot=[tr(tf0), hem_l],
     )
-    info.update(dict(sleeve_notch_arcs=dict(shoulder=s_shoulder, front=s_front, back1=s_back1, back2=s_back2),
+    info.update(dict(sleeve_spot=sleeve_spot,
+                     sleeve_notch_arcs=dict(shoulder=s_shoulder, front=s_front, back1=s_back1, back2=s_back2),
                      arm_notch_from_side=dict(front=fa_len - plen(front_arm1), back1=ba_len - plen(back_arm1),
                                               back2=ba_len - plen(back_arm1) - 1.2),
                      sp_b=sp_b, sp_f=sp_f, sideX=sideX, y_w=y_w, y_h=y_h, y_L=y_L, cb_rise=cb_rise,

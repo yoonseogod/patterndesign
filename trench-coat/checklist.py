@@ -194,6 +194,40 @@ def new_rows(size):
     add("G. 부속 위치", "칼라에 목 여밈 탭 단추 위치", bool(P["collar"].dots) and
         P["collar"].poly.contains(Point(P["collar"].dots[0][:2])))
 
+    # P. 제도값 ↔ 실제 조각 일치 (검사들이 재는 선이 정말 조각 외곽선인지)
+    seam_piece = {"front_shoulder": "front", "front_arm": "front", "front_side": "front", "front_neck": "front",
+                  "front_edge": "front", "front_hem": "front", "neck_ext": "front",
+                  "back_shoulder": "back", "back_arm": "back", "back_side": "back", "back_neck": "back",
+                  "back_hem": "back", "top_front": "topsleeve", "top_back": "topsleeve", "top_wrist": "topsleeve",
+                  "under_front_rot": "undersleeve", "under_back": "undersleeve", "under_wrist": "undersleeve",
+                  "stand_bot": "stand", "stand_top": "stand", "fall_bot": "collar", "fall_outer": "collar",
+                  "facing_edge": "facing"}
+    mism = []
+    for sk, pk in seam_piece.items():
+        pts = S[sk]
+        if sk == "facing_edge":
+            pts = pts[1:]                       # 안단은 칼라 끝(ce)부터
+        edge = LineString(P[pk].outline + [P[pk].outline[0]])
+        far = max(edge.distance(Point(q)) for q in pts)
+        if far > 0.05:
+            mism.append(f"{sk}→{pk} {far:.2f}cm")
+    add("P. 제도값=조각", "검사에 쓰는 선 23개가 모두 실제 조각 외곽선 위", not mism, "; ".join(mism))
+    # 진동 노치가 실제 앞·뒤판 위 정확한 위치에
+    fs = info["arm_notch_from_side"]
+    def has_notch(piece, q):
+        return any(math.dist(n, q) < 0.05 for n in piece.notches)
+    fa_rev, ba_rev = list(reversed(S["front_arm"])), list(reversed(S["back_arm"]))
+    ok_arm = (has_notch(P["front"], G.point_at(fa_rev, fs["front"])) and
+              has_notch(P["back"], G.point_at(ba_rev, fs["back1"])) and
+              has_notch(P["back"], G.point_at(ba_rev, fs["back2"])))
+    add("P. 제도값=조각", "진동 노치(앞1·뒤2)가 앞·뒤판의 계산 위치에 찍혀 있음", ok_arm)
+    miss = []
+    for nm, arc in info["sleeve_notch_arcs"].items():
+        k, q = info["sleeve_spot"](arc)
+        if not has_notch(P["topsleeve" if k == "top" else "undersleeve"], q):
+            miss.append(nm)
+    add("P. 제도값=조각", "소매 노치(어깨·앞·뒤2)가 윗/밑소매의 계산 위치에 찍혀 있음", not miss, ",".join(miss))
+
     # M. 조각 안 표시
     out_lines, out_dots, off_notch, no_size = [], [], [], []
     for p in pieces:
@@ -221,7 +255,7 @@ def new_rows(size):
 
     # L. 표지·글꼴
     import pdfplumber
-    pdfp = os.path.join(HERE, "pdf", f"trench_men_{size}_A4.pdf")
+    pdfp = os.path.join(os.environ.get("TRENCH_PDF_DIR", os.path.join(HERE, "pdf")), f"trench_men_{size}_A4.pdf")
     with pdfplumber.open(pdfp) as pdf:
         over = []
         for k in (0, 1):
@@ -233,6 +267,60 @@ def new_rows(size):
     fonts = subprocess.run(["pdffonts", pdfp], capture_output=True, text=True).stdout.splitlines()[2:]
     used_not_emb = [l.split()[0] for l in fonts if "Nanum" in l and " no " in l]
     add("L. 표지", "한글 글꼴이 PDF에 포함됨", any("Nanum" in l for l in fonts) and not used_not_emb)
+
+    # Q. 시접 포함 버전 재단선 (시접 포함 PDF에 그려지는 선)
+    G.NET = False
+    try:
+        ps_sa, _ = G.draft(size)
+    finally:
+        G.NET = True
+    thin, hem_short, past_fold, multi = [], [], [], []
+    for p in ps_sa:
+        cut, net = p.cut, p.poly
+        if cut.geom_type != "Polygon":
+            multi.append(p.name)
+            continue
+        ring = net.exterior
+        border = cut.exterior
+        if p.fold_x is not None:        # 골선 부분은 시접이 없으므로 거리 계산에서 뺀다
+            from shapely.geometry import box as _box
+            border = border.difference(_box(p.fold_x - 0.01, -1e4, p.fold_x + 0.01, 1e4))
+        for k in range(0, int(ring.length), 1):
+            q = ring.interpolate(k)
+            if p.fold_x is not None and abs(q.x - p.fold_x) < 0.05:
+                continue
+            if border.distance(q) < G.SA - 0.05:          # 정해진 기준(1cm)과 비교
+                thin.append(f"{p.name}@{q.x:.0f},{q.y:.0f}")
+                break
+        if p.hem:
+            for hq in p.hem[0][1:-1]:
+                if not cut.buffer(0.02).contains(Point(hq[0], hq[1] + p.hem[1] - 0.05)):
+                    hem_short.append(p.name)
+                    break
+        if p.fold_x is not None and cut.bounds[0] < p.fold_x - 0.01:
+            past_fold.append(p.name)
+    add("Q. 시접 포함 재단선", "재단선이 한 덩어리 (조각마다)", not multi, ",".join(multi))
+    add("Q. 시접 포함 재단선", "완성선 둘레 어디서나 시접 ≥ 1cm (골선 제외)", not thin, ", ".join(thin))
+    add("Q. 시접 포함 재단선", "밑단 시접 4cm 확보", not hem_short, ",".join(hem_short))
+    add("Q. 시접 포함 재단선", "골선 너머로 시접이 붙지 않음", not past_fold, ",".join(past_fold))
+
+    # R. 인쇄 안전 여백 · 배치도
+    with pdfplumber.open(pdfp) as pdf:
+        def visible(k, ch, pg):
+            # 패턴 장(3쪽~)의 조각 글자는 1cm 여백 안 칸으로 잘려 그려짐 → 칸 밖 조각 글자는 보이지 않음
+            if k < 2:
+                return True
+            M = G.MARGIN * 28.3465                     # 실제 인쇄 칸(잘림 상자) 위치
+            inside = M <= ch["x0"] and ch["x1"] <= pg.width - M and M <= ch["top"] and ch["bottom"] <= pg.height - M
+            near_page = -20 <= ch["x0"] and ch["x1"] <= pg.width + 20 and -20 <= ch["top"] and ch["bottom"] <= pg.height + 20
+            header = near_page and (abs(ch["size"] - 7) < 0.05 or abs(ch["size"] - 9) < 0.05)
+            return inside or header                    # 칸 안 글자 + 쪽 머리글·바닥글(7·9pt)
+        edge = [f"{k + 1}쪽" for k, pg in enumerate(pdf.pages)
+                if any(ch["x0"] < 14.2 or ch["x1"] > pg.width - 14.2 or ch["top"] < 14.2 or ch["bottom"] > pg.height - 14.2
+                       for ch in pg.chars if visible(k, ch, pg))]
+        map_shapes = len([c for c in pdf.pages[1].curves]) + len([r for r in pdf.pages[1].rects if r["width"] < 200])
+    add("R. 인쇄", "모든 쪽의 글자가 종이 끝에서 5mm 이상", not edge, ",".join(edge[:5]))
+    add("R. 인쇄", "2쪽 배치도에 조각이 모두 그려짐 (조각 수 이상)", map_shapes >= len(pieces), f"{map_shapes} / {len(pieces)}")
 
     # H. 올 방향 (전 조각에 식서 있음)
     add("H. 올 방향", "모든 조각에 식서 화살표", all(p.grain for p in pieces))

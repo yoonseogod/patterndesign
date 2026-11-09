@@ -167,9 +167,19 @@ def main(size):
     # 단추 위치
     Wh, DB = info["Wh"], info["DB"]
     front = pieces[[p.key for p in pieces].index("front")]
-    xs = sorted({round(x - Wh, 2) for x, _, rr in front.dots if rr > 1.0})   # 앞여밈 단추만 (견장 단추 제외)
+    closure = [(x - Wh, y) for x, y, rr in front.dots if rr > 1.0]          # 앞여밈 단추만 (견장 단추 제외)
+    rows_ = {}
+    for x, y in closure:
+        rows_.setdefault(round(y, 3), []).append(x)
+    # 행마다 단추 2개, 앞중심 기준 좌우 대칭, 모든 행이 같은 x 위치 → 가장 큰 어긋남(cm)
+    worst = 0.0 if len(rows_) == 5 and all(len(v) == 2 for v in rows_.values()) else 99.0
+    ref = sorted(next(iter(rows_.values())))
+    for v in rows_.values():
+        v = sorted(v)
+        worst = max(worst, abs(v[0] + v[1]), abs(v[0] - ref[0]), abs(v[1] - ref[1]))
+    xs = sorted(x for x, _ in closure)
     edge_gap = DB - max(xs)
-    btn_rows = [("단추 좌우가 앞중심 기준 대칭", abs(xs[0] + xs[-1]), 0, 0.01),
+    btn_rows = [("단추 5행 × 2열: 행마다 좌우 대칭이고 모든 행이 같은 위치 (어긋남 cm)", worst, 0, 0.01),
                 ("바깥 단추 ~ 앞단 거리 (단추 지름 2.3cm 기준 2.5~4cm)", edge_gap, 2.5, 4.0)]
 
     print(f"## 사이즈 {size} 제도 검토\n")

@@ -22,8 +22,9 @@ if SA_MODE:
     G.NET = False                       # 시접 포함 버전 검사
 size = args[0] if args else "100"
 sfx = "_withSA" if SA_MODE else ""
-A4 = f"{TC}/pdf/trench_men_{size}_A4{sfx}.pdf"
-FULL = f"{TC}/pdf/trench_men_{size}_fullsize{sfx}.pdf"
+PDF_DIR = os.environ.get("TRENCH_PDF_DIR", f"{TC}/pdf")     # 시험용으로 다른 폴더 지정 가능
+A4 = f"{PDF_DIR}/trench_men_{size}_A4{sfx}.pdf"
+FULL = f"{PDF_DIR}/trench_men_{size}_fullsize{sfx}.pdf"
 results = []
 
 
