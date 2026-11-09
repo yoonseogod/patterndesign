@@ -361,6 +361,13 @@ def draft(size):
         perp = (-perp[0], -perp[1])
     pocket = [pa, pb, (pb[0] + perp[0] * 4.5, pb[1] + perp[1] * 4.5),
               (pa[0] + perp[0] * 4.5, pa[1] + perp[1] * 4.5), pa]
+    # 주머니감: 입구에서 앞중심 쪽 아래로 펼쳐지고, 안단 안쪽선 1cm 앞에서 끝난다 (앞판 점선과 같은 모양)
+    bag_fx = Wh - 4 - 1.0
+    bag_yb = pb[1] + 5.0
+    bag_outline = join([pa, (bag_fx, pa[1]), (bag_fx, bag_yb - 3)],
+                       bez((bag_fx, bag_yb - 3), (bag_fx, bag_yb - 1), (bag_fx - 1, bag_yb), (bag_fx - 3, bag_yb)),
+                       [(pb[0] + 3, bag_yb)],
+                       bez((pb[0] + 3, bag_yb), (pb[0] + 1.5, bag_yb), (pb[0], bag_yb - 1.5), pb))
     yg = sp_f[1] + 14
     # 건 플랩 모양 (위치선과 조각이 같은 점을 쓰도록 여기서 한 번만 정의)
     arm_part, _ = cut_until(front_arm_out, lambda p: p[1] >= yg)
@@ -375,6 +382,7 @@ def draft(size):
                ([(sideX - 0.6, y_h), (Wh + DB, y_h)], "dash", "엉덩이선"),
                (clip_line([(Wh + DB, rows_y[1] + 3), (f_snp[0] + 1.2, 1.0)], front_outline), "dot", "라펠 꺾임선"),
                (pocket, "solid", "주머니 웰트 위치"),
+               (bag_outline[1:] + bag_outline[:2], "dot", "주머니감 위치"),   # 이름은 앞쪽 세로선에
                *holes,
                (gun_free, "dot", "건플랩 위치 (오른쪽)")],
         dots=btn + [(ep_btn[0], ep_btn[1], 0.8)],
@@ -444,7 +452,7 @@ def draft(size):
     fq, bq = B * 0.25, B * 0.75
     wf, wb = xc - wW * 0.25, xc + wW * 0.25
     ef, eb = 2.5, 1.5
-    y_e = CH + (SLg - CH) * 0.45
+    y_e = 0.55 * m["sleeve"] + 1.0      # 팔꿈치선: 어깨끝~팔꿈치 = 팔길이 × 0.55, 소매산 위 패드분 1cm
     tf0 = (fq - ef, y_at_x(capc, fq - ef))
     tb0 = (bq + eb, y_at_x(capc, bq + eb))
     tf1, tb1 = (wf - ef, SLg), (wb + eb, SLg)
@@ -486,8 +494,8 @@ def draft(size):
         lines=[(clip_line([(tf0[0] - 5, y_e), (tb0[0] + 5, y_e)], top_outline), "dash", "팔꿈치선"),
                (clip_line([(tf1[0] - 5, SLg - 6), (tb1[0] + 5, SLg - 6)], top_outline), "dot", "소매 스트랩 위치")],
         notches=sl_notch["top"] + [elbow_b],
-        texts=[(tf0[0] + 2.5, CH + 12, "윗소매", 1.2), (tf0[0] + 2.5, CH + 14, "TOP SLEEVE", 0.6),
-               (tf0[0] + 2.5, CH + 15.7, f"사이즈 {size}", 0.6),
+        texts=[(tf0[0] + 2.5, y_e + 5, "윗소매", 1.2), (tf0[0] + 2.5, y_e + 7, "TOP SLEEVE", 0.6),
+               (tf0[0] + 2.5, y_e + 8.7, f"사이즈 {size}", 0.6),
                (p_sh[0] - 1, p_sh[1] + 2.2, "어깨점", 0.5)]))
 
     # 밑소매: 소매 양쪽 겨드랑이 부분을 겨드랑이점에서 돌려 이어 붙이고, 밑단은 한 직선으로
@@ -594,11 +602,15 @@ def draft(size):
     piece_list.append(Piece("welt", "주머니 웰트", "겉감 2장 (식서는 앞판과 같은 방향)", welt, grain=welt_grain,
                             lines=[([(0, 4.5), (pk, 4.5)], "dot", "접는 선")],
                             texts=[(1.5, 2.8, "주머니 웰트 WELT", 0.6), (1.5, 7.2, f"사이즈 {size}", 0.5)]))
-    bw = pk + 4                         # 주머니감 폭 = 입구 + 4
-    bag = join([(0, 0), (bw, 0)], bez((bw, 0), (bw, 22), (bw, 30), (bw - 8, 30)),
-               bez((bw - 8, 30), (2, 30), (0, 26), (0, 18)))
-    piece_list.append(Piece("bag", "주머니감", "안감 또는 스레키 4장", bag, grain=((bw / 2, 3), (bw / 2, 26)),
-                            texts=[(2, 9, "주머니감 POCKET BAG", 0.7), (2, 11, f"사이즈 {size}", 0.55)]))
+    # 주머니감 조각 = 앞판의 '주머니감 위치' 점선과 같은 모양 (앞판 좌표 그대로, 식서도 앞판과 같은 세로)
+    bx0, by0 = min(q[0] for q in bag_outline), min(q[1] for q in bag_outline)
+    bag = [(q[0] - bx0, q[1] - by0) for q in bag_outline]
+    bw = max(q[0] for q in bag)
+    bh = max(q[1] for q in bag)
+    piece_list.append(Piece("bag", "주머니감", "안감 또는 스레키 4장 (2벌, 좌우 대칭)", bag,
+                            grain=((bw - 3, 2.5), (bw - 3, bh - 4)),
+                            texts=[(pb[0] - bx0 + 1.0, 4.0, "주머니감", 0.7), (pb[0] - bx0 + 1.0, 5.5, "POCKET BAG", 0.45),
+                                   (pb[0] - bx0 + 1.0, 6.8, f"사이즈 {size}", 0.45)]))
     belt_tip = strap(25, 5.0, 5.0, 3.0)
     piece_list.append(Piece("belttip", "벨트 끝 본", "본 (재단 안내 참조)", belt_tip,
                             grain=((2, 2.5), (18, 2.5)),
@@ -633,7 +645,7 @@ def draft(size):
         "cuffstrap": [((sl_strap_len / 2, 0), "사방 시접 1cm")],
         "latch": [((8, 0), "사방 1cm")],
         "welt": [((pk / 2, 9), "사방 시접 1cm")],
-        "bag": [((bw / 2, 0), "사방 시접 1cm")],
+        "bag": [((bw / 2 + 2, 0), "사방 시접 1cm")],
         "belttip": [((11, 5), "사방 시접 1cm")],
     }
     for p in piece_list:

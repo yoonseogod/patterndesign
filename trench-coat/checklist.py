@@ -322,6 +322,39 @@ def new_rows(size):
     add("R. 인쇄", "모든 쪽의 글자가 종이 끝에서 5mm 이상", not edge, ",".join(edge[:5]))
     add("R. 인쇄", "2쪽 배치도에 조각이 모두 그려짐 (조각 수 이상)", map_shapes >= len(pieces), f"{map_shapes} / {len(pieces)}")
 
+    # S2. 팔꿈치선 = 몸의 팔꿈치 (윗소매 '팔꿈치선' 높이, 소매산 꼭대기 기준)
+    el = [l for l in P["topsleeve"].lines if l[2] == "팔꿈치선"][0][0]
+    body_el = 0.55 * G.SIZES[size]["sleeve"] + 1.0
+    add("S2. 소매", "팔꿈치선이 몸의 팔꿈치 높이 ±1.5cm", abs(el[0][1] - body_el) <= 1.5, f"{el[0][1]:.1f} / {body_el:.1f}")
+    en = P["topsleeve"].notches[-1]
+    add("S2. 소매", "팔꿈치 노치가 팔꿈치선 높이 (±0.3)", abs(en[1] - el[0][1]) <= 0.3, f"{en[1]:.1f}")
+
+    # S1. 부속끼리 간섭 (주머니·주머니감·단추·안단·옆선)
+    pkl = [l for l in P["front"].lines if l[2] == "주머니 웰트 위치"][0][0]
+    bagl = [l for l in P["front"].lines if l[2] == "주머니감 위치"]
+    from shapely.geometry import Polygon as _Poly
+    pocket_poly = _Poly(pkl)
+    btn_polys = [Point(x, y).buffer(r) for x, y, r in P["front"].dots if r > 1.0]
+    add("S1. 부속 간섭", "주머니가 단추에서 5cm 이상 떨어짐", min(pocket_poly.distance(b) for b in btn_polys) >= 5,
+        f"{min(pocket_poly.distance(b) for b in btn_polys):.1f}")
+    add("S1. 부속 간섭", "주머니가 옆선에서 2.5cm 이상 안쪽", min(q[0] for q in pkl) - info["sideX"] >= 2.5)
+    ok_bag = bool(bagl)
+    if ok_bag:
+        bo = bagl[0][0]
+        facing_in = info["Wh"] - 4
+        add("S1. 부속 간섭", "주머니감이 안단 안쪽선 앞에서 끝남 (겹치지 않음)", max(q[0] for q in bo) <= facing_in - 0.5,
+            f"{max(q[0] for q in bo) - facing_in:+.1f}")
+        mid = ((pkl[0][0] + pkl[1][0]) / 2, (pkl[0][1] + pkl[1][1]) / 2)
+        depth = max(math.dist(mid, q) for q in bo)
+        add("S1. 부속 간섭", "손 깊이(입구 가운데 → 주머니감 끝) ≥ 19cm", depth >= 19, f"{depth:.1f}")
+        bg = P["bag"].poly
+        from shapely import affinity as _aff
+        bx0, by0 = min(q[0] for q in bo), min(q[1] for q in bo)
+        same = _aff.translate(_Poly(bo), -bx0, -by0).symmetric_difference(bg).area < 0.5
+        add("S1. 부속 간섭", "주머니감 조각 = 앞판 '주머니감 위치' 모양", same)
+    else:
+        add("S1. 부속 간섭", "앞판에 주머니감 위치 표시", False)
+
     # H. 올 방향 (전 조각에 식서 있음)
     add("H. 올 방향", "모든 조각에 식서 화살표", all(p.grain for p in pieces))
 
