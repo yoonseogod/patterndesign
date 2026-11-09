@@ -356,6 +356,15 @@ def new_rows(size):
     add("R. 인쇄", "모든 쪽의 글자가 종이 끝에서 5mm 이상", not edge, ",".join(edge[:5]))
     add("R. 인쇄", "2쪽 배치도에 조각이 모두 그려짐 (조각 수 이상)", map_shapes >= len(pieces), f"{map_shapes} / {len(pieces)}")
 
+    # S5. 원단 소요량 (어림): 일반 범위 · 사이즈가 커지면 줄지 않음
+    est = {z: G.fabric_estimate(z) for z in G.SIZES}
+    main_m = [est[z]["겉감"][1] for z in G.SIZES]
+    lin_m = [est[z]["안감"][1] for z in G.SIZES]
+    add("S5. 원단", "겉감 150cm 폭 소요량 3.0~4.5m", 3.0 <= est[size]["겉감"][1] <= 4.5, f"{est[size]['겉감'][1]:.2f}m")
+    add("S5. 원단", "안감 140cm 폭 소요량 1.8~3.2m", 1.8 <= est[size]["안감"][1] <= 3.2, f"{est[size]['안감'][1]:.2f}m")
+    add("S5. 원단", "사이즈가 커질수록 소요량이 줄지 않음", all(main_m[i] <= main_m[i + 1] + 0.02 for i in range(3)) and
+        all(lin_m[i] <= lin_m[i + 1] + 0.02 for i in range(3)))
+
     # S3. 뒤트임: 열림 시작이 엉덩이선 아래 0~6cm
     cbx = [q for q in P["back"].outline if abs(q[0] + 5) < 0.01]
     vt = min(q[1] for q in cbx)

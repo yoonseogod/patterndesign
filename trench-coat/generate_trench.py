@@ -780,6 +780,78 @@ def layout(pieces, col_options=(4, 5, 6)):
     return rows
 
 
+def fabric_estimate(size):
+    """재단 장수대로 조각(시접 포함)을 원단 폭 위에 배치해 필요한 길이(cm)를 어림한다.
+    골선 조각은 펼친 모양, 식서는 원단 길이 방향, 회전 없음. 결과에 10% 여유를 더한다."""
+    global NET
+    import numpy as np
+    from shapely import affinity
+    old = NET
+    NET = False
+    try:
+        pieces, info = draft(size)
+    finally:
+        NET = old
+    counts = {"front": 2, "back": 2, "facing": 2, "gunflap": 2, "shield": 2, "topsleeve": 2, "undersleeve": 2,
+              "collar": 2, "stand": 2, "epaulette": 4, "cuffstrap": 4, "latch": 2, "welt": 2}
+    lining = {"front": 2, "back": 2, "topsleeve": 2, "undersleeve": 2, "bag": 4}
+
+    def shape(p):
+        g = p.cut
+        if p.fold_x is not None:
+            g = unary_union([g, affinity.scale(g, xfact=-1, origin=(p.fold_x, 0))])
+        return g
+
+    def pack(polys, width, keyf, profile, step=1.0):
+        """스카이라인 배치 (간격 1cm). profile=True면 조각 윗선 모양대로, False면 사각형으로."""
+        n = int(width / step)
+        sky = np.zeros(n)
+        for g in sorted(polys, key=keyf):
+            g = g.buffer(0.5)
+            if not profile:
+                g = box(*g.bounds)
+            minx, miny, maxx, maxy = g.bounds
+            k = int(math.ceil((maxx - minx) / step))
+            if k > n:
+                return None
+            top, bot = np.full(k, 1e9), np.full(k, -1e9)
+            for j in range(k):
+                col = g.intersection(box(minx + j * step, miny - 1, minx + (j + 1) * step, maxy + 1))
+                if not col.is_empty:
+                    top[j], bot[j] = col.bounds[1] - miny, col.bounds[3] - miny
+            valid = top < 1e8
+            best = None
+            for i in range(0, n - k + 1):
+                y = max(0.0, float(np.max(sky[i:i + k][valid] - top[valid])))
+                if best is None or y < best[0] - 1e-9:
+                    best = (y, i)
+            y, i = best
+            seg = sky[i:i + k]
+            sky[i:i + k] = np.where(valid, np.maximum(seg, y + bot), seg)
+        return float(sky.max())
+
+    P = {p.key: p for p in pieces}
+    main = [shape(P[k]) for k, c in counts.items() for _ in range(c)]
+    main.append(box(0, 0, 14, info["belt_len"] + 2))                    # 벨트 (원단 길이 방향)
+    main += [box(0, 0, 6, 8) for _ in range(4)]                         # 벨트고리
+    lin = []
+    for k, c in lining.items():
+        g = shape(P[k])
+        if k == "front":                                                 # 안단 폭만큼 빼고 1.5cm 겹침
+            g = g.intersection(box(-1e4, -1e4, info["Wh"] - 4 + 1.5 + SA, 1e4))
+        if k == "back":                                                  # 뒤중심 주름 2cm
+            g = unary_union([g, affinity.translate(g, -2, 0)])
+        lin += [g] * c
+    out = {}
+    for name, polys, width in (("겉감", main, 150), ("안감", lin, 140)):
+        keys = [lambda g: -g.area, lambda g: -(g.bounds[3] - g.bounds[1]), lambda g: -(g.bounds[2] - g.bounds[0])]
+        tries = [pack(polys, width - 2, kf, pr) for kf in keys for pr in (True, False)]
+        tries = [t for t in tries if t is not None]
+        L = min(tries) if tries else None
+        out[name] = (width, None if L is None else L * 1.10 / 100)
+    return out
+
+
 # ── 그리기 ────────────────────────────────────────────────────────────────
 
 def poly_path(c, pts, close=True):
@@ -1135,7 +1207,10 @@ def cover_page(c, size, info, pieces, rows, used):
               "단추: 앞 2.3cm 10개 (패턴 표시) + 안쪽 여밈 단추 1개, 1.6cm 4개 (견장 2 · 목 여밈 탭 2)",
               "안감: 앞판·뒤판·윗소매·밑소매 본 사용 (안단 폭만큼 앞판 안감 제외, 뒤중심 주름 2cm 추가)",
               "  · 소매 안감은 겨드랑이(소매산 아래)를 1cm 올려 재단 · 안감 밑단은 겉감 완성선보다 2~3cm 짧게",
-              "원단 두께분: 겉칼라(겉쪽 1장)와 안단 라펠 바깥선은 0.2~0.3cm 크게 그려 재단 (겉에서 봉제선이 안 보이게)"]
+              "원단 두께분: 겉칼라(겉쪽 1장)와 안단 라펠 바깥선은 0.2~0.3cm 크게 그려 재단 (겉에서 봉제선이 안 보이게)",
+              "원단 소요량 (어림, 10% 여유 포함): " + " · ".join(
+                  f"{k} {w}cm 폭 약 {v:.1f}m" for k, (w, v) in fabric_estimate(size).items() if v)
+              + "  — 방향성 있는 원단·무늬 맞춤이면 더 필요"]
     for i, s in enumerate(items):
         c.drawString(1.5 * cm, y - (i + 1) * 11.5, s)
     # 배치도
