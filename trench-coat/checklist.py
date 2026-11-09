@@ -472,8 +472,12 @@ def new_rows(size):
     el = [l for l in P["topsleeve"].lines if l[2] == "팔꿈치선"][0][0]
     body_el = 0.55 * G.SIZES[size]["sleeve"] + 1.0
     add("S2. 소매", "팔꿈치선이 몸의 팔꿈치 높이 ±1.5cm", abs(el[0][1] - body_el) <= 1.5, f"{el[0][1]:.1f} / {body_el:.1f}")
-    en = min([n for n in P["topsleeve"].notches if n[1] > info["CH"] + 1], key=lambda n: abs(n[1] - el[0][1]))
-    add("S2. 소매", "팔꿈치 노치가 팔꿈치선 높이 (±0.3)", abs(en[1] - el[0][1]) <= 0.3, f"{en[1]:.1f}")
+    el_n = [n for n in P["topsleeve"].notches if n[1] > info["CH"] + 1]
+    if el_n:
+        en = min(el_n, key=lambda n: abs(n[1] - el[0][1]))
+        add("S2. 소매", "팔꿈치 노치가 팔꿈치선 높이 (±0.3)", abs(en[1] - el[0][1]) <= 0.3, f"{en[1]:.1f}")
+    else:
+        add("S2. 소매", "팔꿈치 노치가 팔꿈치선 높이 (±0.3)", False, "팔꿈치 노치 없음")
 
     # S1. 부속끼리 간섭 (주머니·주머니감·단추·안단·옆선)
     pkl = [l for l in P["front"].lines if l[2] == "주머니 웰트 위치"][0][0]
