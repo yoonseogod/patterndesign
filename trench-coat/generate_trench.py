@@ -579,13 +579,15 @@ def draft(size):
     stand_outline = join(stand_bot, [(Lc + 0.3, -2.6)], list(reversed(stand_top)))
     piece_list.append(Piece(
         "stand", "칼라 스탠드", "겉감 2장 + 심지 2장 (골선)", stand_outline, fold_x=0, fuse="all",
-        grain=vgrain(stand_outline, Lc * 0.72, 0.6), fold_label="CB 골선",
+        grain=vgrain(stand_outline, Lc * 0.72, 0.3), fold_label="CB 골선",
         notches=[(plen(back_neck), y_at_x(stand_bot, plen(back_neck))),
                  point_at(stand_top, plen(back_neck))],          # 윗선: 겉칼라 어깨 노치와 맞춤
         texts=[(2.2, -2.4, f"칼라 스탠드 STAND · {size}", 0.5)]))
     # 겉칼라: 아랫선을 앞으로 갈수록 내려 휘게 하고(dip), 바깥선을 아랫선과 나란히(높이 7.5→8.3) 그어
     # 바깥선이 아랫선보다 약 2~2.5cm 길어지게 한다(스프링). 아랫선 길이는 칼라밴드 윗선 + 0.2.
     FALL_DIP = 4.5
+    FALL_H = 7.5          # 겉칼라 높이 (뒤중심 ~ 앞끝 같게)
+    COLLAR_PT = 2.0       # 칼라 끝 뾰족 길이 → 칼라 앞끝 ≈ 라펠 윗선 (노치가 막히지 않게)
 
     def make_fall(Lb):
         bot = catmull([(-Lb * 0.5, FALL_DIP * 0.25), (0, 0), (Lb * 0.5, FALL_DIP * 0.25), (Lb, FALL_DIP)])
@@ -596,7 +598,7 @@ def draft(size):
             a_, b_ = bot[max(0, i - 1)], bot[min(n_ - 1, i + 1)]
             t_ = unit(a_, b_)
             nrm = perp_toward(t_, want_y=-1)
-            h_ = 7.5 + 0.8 * i / (n_ - 1)
+            h_ = FALL_H
             top.append((p[0] + nrm[0] * h_, p[1] + nrm[1] * h_))
         top[0] = (0.0, top[0][1])
         return bot, top
@@ -610,7 +612,7 @@ def draft(size):
             hi_ = mid_
     fall_bot, fall_top = make_fall((lo_ + hi_) / 2)
     tdir = unit(fall_top[-4], fall_top[-1])
-    collar_pt = (fall_top[-1][0] + tdir[0] * 3.0, fall_top[-1][1] + tdir[1] * 3.0)   # 칼라 끝 뾰족
+    collar_pt = (fall_top[-1][0] + tdir[0] * COLLAR_PT, fall_top[-1][1] + tdir[1] * COLLAR_PT)   # 칼라 끝 뾰족
     fall_top = fall_top + [collar_pt]
     fall_outline = join(fall_bot, list(reversed(fall_top)))
     fe_u = unit(fall_bot[-1], collar_pt)
@@ -732,6 +734,7 @@ def draft(size):
 # ── 배치 ─────────────────────────────────────────────────────────────────
 
 TILE_W, TILE_H = 19.0, 27.7     # A4 인쇄 영역 (여백 1cm)
+LAST_LAYOUT = {}                # 마지막 배치 결과 (장수, 거의 빈 장 수, 거의 빈 장 없이 가능한 최소 장수)
 MARGIN = 1.0
 COLS = 5
 GAP = 2.0
@@ -787,15 +790,19 @@ def layout(pieces, col_options=(4, 5, 6)):
     keys = [area, lambda p: -(p.bounds()[3] - p.bounds()[1]), lambda p: -(p.bounds()[2] - p.bounds()[0]),
             lambda p: -p.cut.area]
     best = None
+    best_clean = 10 ** 9                               # 거의 빈 장이 없는 배치 중 최소 장수
     for cols in col_options:
         for keyf in keys:
             r = _pack(pieces, cols, keyf)
             if r is None:
                 continue
             offsets0, _ = r
-            for dy in (0, 1, 2, 3, 4, 5, 6):            # 배치 전체를 아래로 조금씩: 칸 경계에 걸리는 위치가 바뀜
-                offsets = {k: (v[0], v[1] + dy) for k, v in offsets0.items()}
-                moved = [affinity.translate(p.cut, *offsets[id(p)]) for p in pieces]
+            base = [affinity.translate(p.cut, *offsets0[id(p)]) for p in pieces]
+            slack = cols * TILE_W - max(m.bounds[2] for m in base) - GAP / 2
+            shifts = [(dx, dy) for dx in (0, 1, 2, 3, 4) if dx <= slack for dy in range(0, 11)]
+            for dx, dy in shifts:                      # 배치 전체를 옆·아래로 조금씩: 칸 경계에 걸리는 위치가 바뀜
+                offsets = {k: (v[0] + dx, v[1] + dy) for k, v in offsets0.items()}
+                moved = [affinity.translate(m, dx, dy) for m in base]
                 rows = math.ceil((max(m.bounds[3] for m in moved) + GAP / 2) / TILE_H)
                 used = 0
                 slivers = 0
@@ -806,13 +813,86 @@ def layout(pieces, col_options=(4, 5, 6)):
                         if a > 0.05:                     # tile_used와 같은 기준
                             used += 1
                             slivers += a < 0.03 * TILE_W * TILE_H
-                score = (used + slivers, slivers, rows, dy)   # 거의 빈 장은 낭비로 한 장 더 친다
+                score = (used, slivers, rows, dy, dx)       # 장수가 먼저, 같으면 거의 빈 장이 없는 쪽
+                if not slivers:
+                    best_clean = min(best_clean, used)
                 if best is None or score < best[0]:
                     best = (score, cols, offsets, rows)
     _, COLS, offsets, rows = best
     for p in pieces:
         p.moved(*offsets[id(p)])
+    _fix_slivers(pieces, rows)
+    global LAST_LAYOUT
+    areas = _tile_areas(pieces, rows + 1)
+    LAST_LAYOUT = dict(pages=len(areas), slivers=sum(a < 0.03 * TILE_W * TILE_H for a in areas.values()),
+                       min_pages_without_sliver=best_clean)
     return rows
+
+
+def _tile_areas(pieces, rows):
+    out = {}
+    for ri in range(rows):
+        for ci in range(COLS):
+            t = box(ci * TILE_W, ri * TILE_H, (ci + 1) * TILE_W, (ri + 1) * TILE_H)
+            a = sum(p.cut.intersection(t).area for p in pieces)
+            if a > 0.05:
+                out[(ci, ri)] = a
+    return out
+
+
+def _fix_slivers(pieces, rows):
+    """거의 빈 장(패턴 3% 미만)에 걸친 조각만 조금씩 옮겨, 장수를 늘리지 않고 그 장을 비운다."""
+    W = COLS * TILE_W
+    limit = 0.03 * TILE_W * TILE_H
+    for _ in range(4):
+        areas = _tile_areas(pieces, rows)
+        slivers = [k for k, a in areas.items() if a < limit]
+        if not slivers:
+            return
+        ci, ri = slivers[0]
+        t = box(ci * TILE_W, ri * TILE_H, (ci + 1) * TILE_W, (ri + 1) * TILE_H)
+        culprits = [p for p in pieces if p.cut.intersection(t).area > 0.05]
+        done = False
+        for p in culprits:
+            others = [q.cut for q in pieces if q is not p]
+            cands = sorted([(dx, dy) for dx in range(-8, 9) for dy in range(-8, 9) if (dx, dy) != (0, 0)],
+                           key=lambda d: abs(d[0]) + abs(d[1]))
+            for dx, dy in cands:
+                from shapely import affinity as _aff
+                g = _aff.translate(p.cut, dx, dy)
+                if g.bounds[0] < GAP / 2 or g.bounds[2] > W - GAP / 2 or g.bounds[1] < GAP / 2:
+                    continue
+                if any(g.distance(o) < GAP - 0.01 for o in others):
+                    continue
+                p.moved(dx, dy)
+                new = _tile_areas(pieces, rows)
+                if len(new) < len(areas) and not any(a < limit for a in new.values()) or \
+                        (len(new) <= len(areas) and (ci, ri) not in new and
+                         sum(a < limit for a in new.values()) < len(slivers)):
+                    done = True
+                    break
+                p.moved(-dx, -dy)
+            if done:
+                break
+        if not done:
+            # 조각 하나로 안 되면: 그 조각과 그보다 아래에 있는 조각들을 함께 내려 본다
+            for p in culprits:
+                top = p.cut.bounds[1]
+                group = [q for q in pieces if q.cut.bounds[1] >= top - 0.01]
+                for dy in range(1, 12):
+                    for q in group:
+                        q.moved(0, dy)
+                    new = _tile_areas(pieces, rows + 1)
+                    if len(new) <= len(areas) and (ci, ri) not in new and \
+                            sum(a < limit for a in new.values()) < len(slivers):
+                        done = True
+                        break
+                    for q in group:
+                        q.moved(0, -dy)
+                if done:
+                    break
+        if not done:
+            return
 
 
 def fabric_estimate(size):

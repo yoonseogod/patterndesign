@@ -438,7 +438,11 @@ def new_rows(size):
             a_ = sum(p.cut.intersection(t).area for p in lp)
             if G.tile_used(lp, ci, ri) and a_ < 0.03 * G.TILE_W * G.TILE_H:
                 thin_pages.append(f"{G.tile_name(ci, ri)}({a_:.0f}cm²)")
-    add("S8. 페이지", "인쇄하는 장마다 패턴이 3% 이상 (선 몇 cm만 있는 장 없음)", not thin_pages, ", ".join(thin_pages))
+    ll = G.LAST_LAYOUT
+    avoidable = bool(thin_pages) and ll.get("min_pages_without_sliver", 10 ** 9) <= ll.get("pages", 0)
+    add("S8. 페이지", "거의 빈 장(패턴 3% 미만)은 장수를 늘려야만 없앨 수 있을 때만 허용", not avoidable,
+        (", ".join(thin_pages) + f" · 지금 {ll.get('pages')}장, 거의 빈 장 없이는 최소 {ll.get('min_pages_without_sliver')}장")
+        if thin_pages else "")
 
     # S5. 원단 소요량 (어림): 일반 범위 · 사이즈가 커지면 줄지 않음
     est = {z: G.fabric_estimate(z) for z in G.SIZES}
@@ -454,6 +458,15 @@ def new_rows(size):
     vt = min(q[1] for q in cbx)
     add("S3. 뒤트임", "트임이 엉덩이선 아래 0~6cm에서 시작", 0 <= vt - info["y_h"] <= 6, f"{vt - info['y_h']:+.1f}")
     add("S3. 뒤트임", "트임 길이 25~40cm", 25 <= info["y_L"] - vt <= 40, f"{info['y_L'] - vt:.1f}")
+
+    # S6. 칼라 끝 ↔ 라펠: 칼라 앞끝 길이 = 라펠 윗선 × 0.8~1.0 (노치가 막히지 않게)
+    lap = math.dist(S["neck_ext"][1], S["front_edge"][2])
+    cp = max(P["collar"].outline, key=lambda q: q[0])
+    cfe = math.dist(S["fall_bot"][-1], cp)
+    add("E. 칼라", "칼라 앞끝 / 라펠 윗선 = 0.8~1.0", 0.8 <= cfe / lap <= 1.0, f"{cfe:.1f} / {lap:.1f} = {cfe / lap:.2f}")
+    sh_ = max(abs(q[1]) for q in P["stand"].outline if q[0] < 0.5)
+    fh_ = max(abs(q[1]) for q in P["collar"].outline if q[0] < 0.5)
+    add("E. 칼라", "겉칼라가 칼라밴드를 1.5cm 이상 덮음 (뒤중심)", fh_ - sh_ >= 1.5, f"{fh_:.1f} − {sh_:.1f}")
 
     # S2. 팔꿈치선 = 몸의 팔꿈치 (윗소매 '팔꿈치선' 높이, 소매산 꼭대기 기준)
     el = [l for l in P["topsleeve"].lines if l[2] == "팔꿈치선"][0][0]
@@ -490,6 +503,21 @@ def new_rows(size):
 
     # H. 올 방향 (전 조각에 식서 있음)
     add("H. 올 방향", "모든 조각에 식서 화살표", all(p.grain for p in pieces))
+    short = []
+    for p in pieces:
+        (ga, gb) = p.grain
+        L = math.dist(ga, gb)
+        d = ((gb[0] - ga[0]) / L, (gb[1] - ga[1]) / L)
+        minx, miny, maxx, maxy = p.poly.bounds
+        best = 0.0
+        for k in range(41):
+            t = k / 40
+            cc = (minx + (maxx - minx) * t, (miny + maxy) / 2) if abs(d[0]) < 0.5 else ((minx + maxx) / 2, miny + (maxy - miny) * t)
+            ln = LineString([(cc[0] - d[0] * 300, cc[1] - d[1] * 300), (cc[0] + d[0] * 300, cc[1] + d[1] * 300)]).intersection(p.poly)
+            best = max(best, ln.length)
+        if L < min(5.0, 0.6 * best) - 0.01:
+            short.append(f"{p.name} {L:.1f}cm")
+    add("H. 올 방향", "식서 화살표 길이 ≥ 5cm (작은 조각은 올 방향 폭의 60%)", not short, ", ".join(short))
 
     # I. 노치 짝
     near_side = lambda n: abs(n[0] - info["sideX"]) < 2 and abs(n[1] - info["y_w"]) < 4
