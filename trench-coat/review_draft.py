@@ -146,7 +146,7 @@ def main(size):
     top, under = pieces[keys.index("topsleeve")], pieces[keys.index("undersleeve")]
     from shapely.geometry import LineString, Point
     on = lambda p, q: LineString(p.outline + [p.outline[0]]).distance(Point(q)) < 0.05
-    nall = top.notches[:-1] + under.notches[:-1]
+    nall = [n for n in top.notches + under.notches if n[1] <= info["CH"] + 0.01]   # 소매산 노치만 (팔꿈치 제외)
     nrows.append(("소매 노치가 모두 소매 외곽선 위에 있음 (개수 5)", float(sum(on(top, q) or on(under, q) for q in nall)), 5, 5))
     # 칼라 끝 = 노치(ce): 칼라밴드 길이 = 뒤목 + 앞목 + CF~노치
     neck_total = G.plen(bn) + G.plen(fn) + G.plen(S["neck_ext"])

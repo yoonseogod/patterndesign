@@ -38,7 +38,9 @@ SIZES = {
 }
 CHEST_EASE = 13.0  # 가슴 여유 (셔츠·니트 위에 입는 슬림 트렌치. 재킷 위 넉넉한 오버코트는 20~24)
 CAP_EASE = 2.5     # 소매산 오그림 (면 개버딘은 잘 오그라들지 않아 2~2.5)
-SLEEVE_ADD = 4.5   # 어깨패드 1 + 소매산 부풀림 1.5 + 손목 덮음 2
+SLEEVE_ADD = 4.5
+BELT_W = 5.0       # 벨트 완성 폭
+LOOP = BELT_W + 1  # 벨트고리 완성 길이 = 옆선 노치 간격 (벨트 폭 + 여유 1)   # 어깨패드 1 + 소매산 부풀림 1.5 + 손목 덮음 2
 
 SA = 1.0        # 기본 시접
 SA_SIDE = 1.5   # 옆선 · 뒤중심 (맞음새 조정분)
@@ -356,7 +358,8 @@ def draft(size):
         lines=[([(0, y_w), (sideX - 0.8, y_w)], "dash", "허리선"),
                ([(0, y_h), (sideX + 0.6, y_h)], "dash", "엉덩이선"),
                ([(0, y_L), (0, vent_top - 5)], "dot", "뒤중심 (트임 꺾임선)")],   # 글자는 밑단 쪽에
-        notches=[b_mid, point_at(back_arm, plen(back_arm1) + 1.2), (sideX - 0.8, y_w - 2.5), (sideX - 0.8, y_w + 2.5)],
+        notches=[b_mid, point_at(back_arm, plen(back_arm1) + 1.2), (sideX - 0.8, y_w - LOOP / 2), (sideX - 0.8, y_w + LOOP / 2),
+                 (0, y_w)],                                  # 뒤중심 허리 (좌우 뒤판 맞춤)
         texts=[(5, y_w - 12, "뒤판 BACK", 1.4), (5, y_w - 9.5, f"사이즈 {size}", 0.9),
                (sideX - 6, y_w + 4, "벨트고리 위치", 0.5)]))
 
@@ -429,7 +432,8 @@ def draft(size):
                *holes,
                (gun_free, "dot", "건플랩 위치 (오른쪽)")],
         dots=btn + [(ep_btn[0], ep_btn[1], 0.8)],
-        notches=[f_mid, ce, (sideX + 0.8, y_w - 2.5), (sideX + 0.8, y_w + 2.5)],
+        notches=[f_mid, ce, (sideX + 0.8, y_w - LOOP / 2), (sideX + 0.8, y_w + LOOP / 2),
+                 (Wh + DB, y_w), (Wh + DB, y_h)],              # 앞단 허리·엉덩이 (안단과 맞춤)
         texts=[(sideX + 3, y_w - 14, "앞판 FRONT", 1.4), (sideX + 3, y_w - 11.5, f"사이즈 {size}", 0.9),
                (Wh + 1, rows_y[4] + 5, "단추 5행 × 2열", 0.55),
                (ep_btn[0] - 1.5, ep_btn[1] + 2.2, "견장 단추 (어깨선 위)", 0.45),
@@ -446,7 +450,7 @@ def draft(size):
         hem=([(Wh - 4, y_L), (Wh + DB, y_L)], HEM), grain=((Wh + 8.6, y_w + 12), (Wh + 8.6, y_L - 8)),
         dots=[(x, y, r) for x, y, r in btn if x > Wh - 4.5],
         lines=[([(Wh, fnd), (Wh, y_L)], "dashdot", "CF")] + holes,
-        notches=[ce],
+        notches=[ce, (Wh + DB, y_w), (Wh + DB, y_h)],
         texts=[(Wh + 0.5, y_w + 14, "앞 안단", 1.1), (Wh + 0.5, y_w + 16, "FACING", 0.6),
                (Wh + 0.5, y_w + 17.7, f"사이즈 {size}", 0.6),
                (Wh + 7.3 - 2.6, rows_y[4] + 2.2, "단춧구멍", 0.42)]))
@@ -528,6 +532,8 @@ def draft(size):
         sl_notch[k_].append(q_)
     p_sh = point_at(capc, s_shoulder)
     elbow_b = lerp(tb0, tb1, (y_e - tb0[1]) / (SLg - tb0[1]))
+    elbow_f_top = cut_at(front_seam, 1, y_e)[-1]                       # 앞솔기 팔꿈치 (윗소매)
+    elbow_f_arc = plen(cut_at(front_seam, 1, y_e))
     top_outline = join(sub_by_x(capc, fq - ef, bq + eb), [tb0, tb1], [tf1], list(reversed(front_seam)))
     top_hem = [tf1, tb1]
     gx = (tf0[0] + tb0[0]) / 2 + 1
@@ -536,7 +542,7 @@ def draft(size):
         grain=((gx, CH + 4), (gx, SLg - 8)),
         lines=[(clip_line([(tf0[0] - 5, y_e), (tb0[0] + 5, y_e)], top_outline), "dash", "팔꿈치선"),
                (clip_line([(tf1[0] - 5, SLg - 6), (tb1[0] + 5, SLg - 6)], top_outline), "dot", "소매 스트랩 위치")],
-        notches=sl_notch["top"] + [elbow_b],
+        notches=sl_notch["top"] + [elbow_b, elbow_f_top],
         texts=[(tf0[0] + 2.5, y_e + 5, "윗소매", 1.2), (tf0[0] + 2.5, y_e + 7, "TOP SLEEVE", 0.6),
                (tf0[0] + 2.5, y_e + 8.7, f"사이즈 {size}", 0.6),
                (p_sh[0] - 1, p_sh[1] + 2.2, "어깨점", 0.5)]))
@@ -560,7 +566,7 @@ def draft(size):
         "undersleeve", "밑소매", "겉감 2장 · 안감 2장 · 밑단 심지 5cm", under_outline, fuse="hem",
         hem=([hem_r, hem_l] if hem_r[0] < hem_l[0] else [hem_l, hem_r], SLEEVE_HEM),
         grain=(((ub[0] + ub[2]) / 2, CH + 6), ((ub[0] + ub[2]) / 2, SLg - 8)),
-        notches=sl_notch["under"] + [elbow_b],
+        notches=sl_notch["under"] + [elbow_b, point_at([tr(tf0), hem_l], elbow_f_arc)],   # 앞솔기 팔꿈치 (밑소매)
         lines=[(under_strap, "dot", "소매 스트랩 위치")],
         texts=[(ub[0] + 3, CH + 14, "밑소매", 1.1), (ub[0] + 3, CH + 16, "UNDER SLEEVE", 0.55),
                (ub[0] + 3, CH + 17.5, f"사이즈 {size}", 0.55)]))
@@ -1231,7 +1237,7 @@ def cover_page(c, size, info, pieces, rows, used):
     c.setFont("KR", 8.2)
     items = [f"{p.name}: {p.cut_txt}" for p in pieces if p.key != "belttip"]
     items += [f"벨트: {info['belt_len']} × 12cm 직사각형 1장 (시접 1cm 포함 치수, 반 접어 완성 폭 5cm, 끝은 '벨트 끝 본')",
-              "벨트고리: 6 × 8cm 4장 (시접 포함, 3겹 접어 완성 2 × 6cm, 허리 옆선용)  ·  소매 버클 2개, 벨트 버클 1개",
+              f"벨트고리: 6 × {LOOP + 2 * SA:g}cm 2장 (시접 포함, 3겹 접어 완성 2 × {LOOP:g}cm, 양쪽 옆선 노치 사이)  ·  소매 버클 2개, 벨트 버클 1개",
               "단추: 앞 2.3cm 10개 (패턴 표시) + 안쪽 여밈 단추 1개, 1.6cm 4개 (견장 2 · 목 여밈 탭 2)",
               "안감: 앞판·뒤판·윗소매·밑소매 본 사용 (안단 폭만큼 앞판 안감 제외, 뒤중심 주름 2cm 추가)",
               "  · 소매 안감은 겨드랑이(소매산 아래)를 1cm 올려 재단 · 안감 밑단은 겉감 완성선보다 2~3cm 짧게",

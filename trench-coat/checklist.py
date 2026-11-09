@@ -10,6 +10,7 @@ import math
 import os
 import re
 import subprocess
+import pdfplumber
 import sys
 
 from shapely.geometry import LineString, Point, box
@@ -227,11 +228,17 @@ def new_rows(size):
     add("G. 부속", "소매 스트랩 ≥ 스트랩 위치 둘레 + 6", st >= circ + 6, f"{st:.1f} / {circ:.1f}")
     waist = 2 * (info["Wh"] - 1.6)
     add("G. 부속", "벨트 ≥ 허리 완성둘레 + 35", info["belt_len"] >= waist + 35, f"{info['belt_len']} / {waist:.0f}")
+    ln = sorted(n[1] for n in P["front"].notches if abs(n[0] - info["sideX"]) < 2 and abs(n[1] - info["y_w"]) < 5)
+    gap = ln[-1] - ln[0] if len(ln) == 2 else 0
+    add("G. 부속", "벨트고리 노치 간격 = 고리 완성 길이 ≥ 벨트 폭 + 1", abs(gap - G.LOOP) < 0.05 and G.LOOP >= G.BELT_W + 1,
+        f"노치 {gap:.1f} / 고리 {G.LOOP:g}")
+    with pdfplumber.open(os.path.join(os.environ.get("TRENCH_PDF_DIR", os.path.join(HERE, "pdf")),
+                                      f"trench_men_{size}_A4.pdf")) as _pdf:
+        _t = _pdf.pages[1].extract_text() or ""
     import re as _re
-    src = open(os.path.join(HERE, "generate_trench.py")).read()
-    mm = _re.search(r"벨트고리: (\d+) × (\d+)cm", src)
-    loop_len = int(mm.group(2)) - 2 * G.SA if mm else 0
-    add("G. 부속", "벨트고리 완성 길이 ≥ 벨트 폭(5) + 1 (재단 목록에서 읽음)", loop_len >= 6, f"{loop_len:g}cm")
+    mm = _re.search(r"벨트고리: [\d.]+ × [\d.]+cm (\d+)장", _t)
+    add("G. 부속", "재단 목록 벨트고리 장수 = 패턴의 고리 자리 수 (옆선 2곳)", bool(mm) and int(mm.group(1)) == 2,
+        mm.group(0) if mm else "목록에 없음")
     bo = LineString(P["back"].outline + [P["back"].outline[0]])
     off = [q for q in P["shield"].outline if q[0] > 0.01 and q[1] < info["scye"] - 3.2 and bo.distance(Point(q)) > 0.05]
     add("G. 부속", "스톰실드 목·어깨·진동선이 뒤판 선과 일치", not off, f"어긋난 점 {len(off)}")
@@ -321,7 +328,7 @@ def new_rows(size):
     add("G. 부속 위치", "앞판 건 플랩 위치선 = 건 플랩 조각 테두리", gedge.contains(LineString(gf)))
 
     # L. 표지·글꼴
-    import pdfplumber
+    pass  # pdfplumber는 파일 맨 위에서 가져옴
     pdfp = os.path.join(os.environ.get("TRENCH_PDF_DIR", os.path.join(HERE, "pdf")), f"trench_men_{size}_A4.pdf")
     with pdfplumber.open(pdfp) as pdf:
         over = []
@@ -444,7 +451,7 @@ def new_rows(size):
     el = [l for l in P["topsleeve"].lines if l[2] == "팔꿈치선"][0][0]
     body_el = 0.55 * G.SIZES[size]["sleeve"] + 1.0
     add("S2. 소매", "팔꿈치선이 몸의 팔꿈치 높이 ±1.5cm", abs(el[0][1] - body_el) <= 1.5, f"{el[0][1]:.1f} / {body_el:.1f}")
-    en = P["topsleeve"].notches[-1]
+    en = min([n for n in P["topsleeve"].notches if n[1] > info["CH"] + 1], key=lambda n: abs(n[1] - el[0][1]))
     add("S2. 소매", "팔꿈치 노치가 팔꿈치선 높이 (±0.3)", abs(en[1] - el[0][1]) <= 0.3, f"{en[1]:.1f}")
 
     # S1. 부속끼리 간섭 (주머니·주머니감·단추·안단·옆선)
@@ -477,12 +484,32 @@ def new_rows(size):
     add("H. 올 방향", "모든 조각에 식서 화살표", all(p.grain for p in pieces))
 
     # I. 노치 짝
-    fw = [n for n in P["front"].notches if abs(n[1] - info["y_w"]) < 3]
-    bw = [n for n in P["back"].notches if abs(n[1] - info["y_w"]) < 3]
+    near_side = lambda n: abs(n[0] - info["sideX"]) < 2 and abs(n[1] - info["y_w"]) < 4
+    fw = [n for n in P["front"].notches if near_side(n)]
+    bw = [n for n in P["back"].notches if near_side(n)]
     add("I. 맞춤 표시", "옆선 벨트고리 노치: 앞 = 뒤 = 2", len(fw) == len(bw) == 2, f"{len(fw)}/{len(bw)}")
+    on_curve = lambda n, pts: LineString(pts).distance(Point(n)) < 0.05 and min(math.dist(n, pts[0]), math.dist(n, pts[-1])) > 1
+    fa_n = [n for n in P["front"].notches if on_curve(n, S["front_arm"])]
+    ba_n = [n for n in P["back"].notches if on_curve(n, S["back_arm"])]
+    cap_n = [n for n in P["topsleeve"].notches + P["undersleeve"].notches if n[1] <= info["CH"] + 0.01]
     add("I. 맞춤 표시", "진동 노치(앞1+뒤2) ↔ 소매 노치(앞1+뒤2+어깨1+겨드랑이1)",
-        len(P["front"].notches) - 2 - 1 == 1 and len(P["back"].notches) - 2 == 2 and
-        len(P["topsleeve"].notches) + len(P["undersleeve"].notches) - 2 == 5)
+        len(fa_n) == 1 and len(ba_n) == 2 and len(cap_n) == 5, f"{len(fa_n)}/{len(ba_n)}/{len(cap_n)}")
+    # 30cm 넘는 솔기는 끝에서 3cm 이상 떨어진 중간 노치가 짝 양쪽에 있어야 함
+    long_pairs = {"옆선": (("front", S["front_side"]), ("back", S["back_side"])),
+                  "소매 앞솔기": (("topsleeve", S["top_front"]), ("undersleeve", S["under_front_rot"])),
+                  "소매 뒷솔기": (("topsleeve", S["top_back"]), ("undersleeve", S["under_back"])),
+                  "앞단": (("front", S["front_edge"]), ("facing", S["facing_edge"][1:]))}
+    no_mid = []
+    for nm, sides in long_pairs.items():
+        for pk, pts in sides:
+            mids = [n for n in P[pk].notches if LineString(pts).distance(Point(n)) < 0.1
+                    and min(math.dist(n, pts[0]), math.dist(n, pts[-1])) > 3]
+            if G.plen(pts) > 30 and not mids:
+                no_mid.append(f"{nm}({P[pk].name})")
+    cbn = [n for n in P["back"].notches if abs(n[0]) < 0.05]
+    if not cbn:
+        no_mid.append("뒤중심")
+    add("I. 맞춤 표시", "30cm 넘는 솔기마다 중간 노치 (짝 양쪽)", not no_mid, ", ".join(no_mid))
     add("I. 맞춤 표시", "칼라밴드 윗선 노치 ↔ 겉칼라 노치", len(P["stand"].notches) == 2 and len(P["collar"].notches) == 1)
     add("I. 맞춤 표시", "칼라 끝 노치: 앞판 = 안단", any(math.dist(n, S["neck_ext"][1]) < 0.01 for n in P["front"].notches)
         and any(math.dist(n, S["neck_ext"][1]) < 0.01 for n in P["facing"].notches))
