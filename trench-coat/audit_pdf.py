@@ -215,6 +215,12 @@ names_ok = all(p.texts[0][2].split()[0] in txt.replace(" ", "") or p.texts[0][2]
                for p in pieces)
 check("한 장짜리 PDF 폭 ≤ 84cm (A0 폭 · 36인치 롤에 들어감)", wcm <= 84.1, f"폭 {wcm:.1f}cm")
 check(f"한 장짜리 PDF에 조각 {len(pieces)}개 이름이 모두 있음", names_ok)
+with pdfplumber.open(FULL) as pdf:
+    pg = pdf.pages[0]
+    sqf = [r for r in pg.rects if abs(r["width"] - 283.4646) < 0.05 and abs(r["height"] - 283.4646) < 0.05]
+    head = (pg.extract_text() or "").replace(" ", "")
+check("한 장짜리 PDF에 10cm 시험 사각형", len(sqf) == 1)
+check("한 장짜리 PDF에 제목·사이즈 표기", f"사이즈{size}" in head and "실제크기" in head)
 
 # 6. 글자 겹침 (전체 1장 PDF의 글자 상자)
 with pdfplumber.open(FULL) as pdf:

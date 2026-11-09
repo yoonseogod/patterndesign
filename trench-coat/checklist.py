@@ -226,8 +226,12 @@ def new_rows(size):
     circ = info["wW"] + (info["B"] - info["wW"]) * 6 / (info["SLg"] - info["CH"])
     st = P["cuffstrap"].poly.bounds[2]
     add("G. 부속", "소매 스트랩 ≥ 스트랩 위치 둘레 + 6", st >= circ + 6, f"{st:.1f} / {circ:.1f}")
-    waist = 2 * (info["Wh"] - 1.6)
-    add("G. 부속", "벨트 ≥ 허리 완성둘레 + 35", info["belt_len"] >= waist + 35, f"{info['belt_len']} / {waist:.0f}")
+    import verify_fit as _VF
+    waist = _VF.garment_circ(info, info["y_w"])           # 실제 옆선에서 잰 허리 완성둘레
+    add("G. 부속", "벨트 = 실제 허리 완성둘레 + 35~55", 35 <= info["belt_len"] - waist <= 55,
+        f"{info['belt_len']} − {waist:.1f} = {info['belt_len'] - waist:.1f}")
+    bt = P["belttip"].poly.bounds
+    add("G. 부속", "벨트 끝 본 폭 = 벨트 완성 폭", abs((bt[3] - bt[1]) - G.BELT_W) < 0.05, f"{bt[3] - bt[1]:.1f}")
     ln = sorted(n[1] for n in P["front"].notches if abs(n[0] - info["sideX"]) < 2 and abs(n[1] - info["y_w"]) < 5)
     gap = ln[-1] - ln[0] if len(ln) == 2 else 0
     add("G. 부속", "벨트고리 노치 간격 = 고리 완성 길이 ≥ 벨트 폭 + 1", abs(gap - G.LOOP) < 0.05 and G.LOOP >= G.BELT_W + 1,

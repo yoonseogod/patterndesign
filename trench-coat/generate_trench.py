@@ -660,7 +660,7 @@ def draft(size):
                             grain=((bw - 3, 2.5), (bw - 3, bh - 4)),
                             texts=[(pb[0] - bx0 + 1.0, 4.0, "주머니감", 0.7), (pb[0] - bx0 + 1.0, 5.5, "POCKET BAG", 0.45),
                                    (pb[0] - bx0 + 1.0, 6.8, f"사이즈 {size}", 0.45)]))
-    belt_tip = strap(25, 5.0, 5.0, 3.0)
+    belt_tip = strap(25, BELT_W, BELT_W, 3.0)
     piece_list.append(Piece("belttip", "벨트 끝 본", "본 (재단 안내 참조)", belt_tip,
                             grain=((2, 2.5), (18, 2.5)),
                             texts=[(1.5, 1.4, "벨트 끝 본 — 벨트 끝 모양을 옮겨 그리세요", 0.45),
@@ -700,9 +700,12 @@ def draft(size):
     for p in piece_list:
         p.sa_marks = marks.get(p.key, [])
 
-    info = dict(Wh=Wh, scye=scye, AH=AH, CH=CH, B=B, wW=wW, SLg=SLg, Lc=Lc,
-                chest_garment=4 * Wh / 2 * 1, length=m["coat_len"],
-                belt_len=round(2 * (Wh - 1.6) * 2 / 2 + 45))
+    # 벨트: 실제 옆선에서 잰 허리 완성둘레 + 45 (코트 두께 둘레분 약 3 + 버클 겹침 약 17 + 끝 늘어짐 약 25)
+    xb_w = cut_at(back_side, 1, y_w)[-1][0]
+    xf_w = cut_at(front_side, 1, y_w)[-1][0]
+    waist_g = 2 * (xb_w + (Wh - xf_w))
+    info = dict(Wh=Wh, scye=scye, AH=AH, CH=CH, B=B, wW=wW, SLg=SLg, Lc=Lc, length=m["coat_len"],
+                waist_garment=waist_g, belt_len=round(waist_g + 45))
     info["chest_garment"] = 2 * Wh
     # 가상 봉제 검사용: 서로 꿰매는 선들
     info["seams"] = dict(
@@ -722,7 +725,6 @@ def draft(size):
                                               back2=ba_len - plen(back_arm1) - 1.2),
                      sp_b=sp_b, sp_f=sp_f, sideX=sideX, y_w=y_w, y_h=y_h, y_L=y_L, cb_rise=cb_rise,
                      fnd=fnd, bnw=bnw, fnw=fnw, DB=DB, backW=backW, frontW=frontW, pad=pad))
-    info["belt_len"] = round(2 * (2 * (Wh - 1.6)) / 2 + 45)
     return piece_list, info
 
 
@@ -1236,7 +1238,7 @@ def cover_page(c, size, info, pieces, rows, used):
     c.drawString(1.5 * cm, y, "재단 목록")
     c.setFont("KR", 8.2)
     items = [f"{p.name}: {p.cut_txt}" for p in pieces if p.key != "belttip"]
-    items += [f"벨트: {info['belt_len']} × 12cm 직사각형 1장 (시접 1cm 포함 치수, 반 접어 완성 폭 5cm, 끝은 '벨트 끝 본')",
+    items += [f"벨트: {info['belt_len']} × {2 * (BELT_W + SA):g}cm 직사각형 1장 (시접 {SA:g}cm 포함 치수, 반 접어 완성 폭 {BELT_W:g}cm, 끝은 '벨트 끝 본')",
               f"벨트고리: 6 × {LOOP + 2 * SA:g}cm 2장 (시접 포함, 3겹 접어 완성 2 × {LOOP:g}cm, 양쪽 옆선 노치 사이)  ·  소매 버클 2개, 벨트 버클 1개",
               "단추: 앞 2.3cm 10개 (패턴 표시) + 안쪽 여밈 단추 1개, 1.6cm 4개 (견장 2 · 목 여밈 탭 2)",
               "안감: 앞판·뒤판·윗소매·밑소매 본 사용 (안단 폭만큼 앞판 안감 제외, 뒤중심 주름 2cm 추가)",
@@ -1353,8 +1355,23 @@ def build(size):
     rows = layout(pieces, col_options=(4,))
     W, H = COLS * TILE_W, rows * TILE_H
     full = os.path.join(OUT_DIR, f"trench_men_{size}_fullsize{sfx}.pdf")
-    c = canvas.Canvas(full, pagesize=(W * cm, H * cm))
+    HEAD = 14.0                                   # 맨 위 머리띠: 제목 · 시험 사각형 · 안내
+    c = canvas.Canvas(full, pagesize=(W * cm, (H + HEAD) * cm))
     c.setTitle(f"남성 트렌치코트 패턴 {size} (전체 1장)")
+    top = (H + HEAD) * cm
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("KRB", 28)
+    c.drawString(1.5 * cm, top - 2.6 * cm, f"남성 더블브레스티드 트렌치코트 · 사이즈 {size}")
+    c.setFont("KR", 15)
+    c.drawString(1.5 * cm, top - 3.8 * cm, "복사실 출력용 1장 · 실제 크기 1:1 · " +
+                 ("시접 미포함 (시접 폭은 각 선에 표기)" if NET else "시접 포함"))
+    c.setFont("KR", 13)
+    lines_ = ["출력할 때 '실제 크기(100%)'로, '용지에 맞춤'은 끄세요.",
+              "오른쪽 10 × 10cm 사각형을 자로 재어 크기를 확인한 뒤 재단하세요.",
+              "선 보는 법·재단 목록은 A4 파일 1~2쪽에 있어요."]
+    for k, t_ in enumerate(lines_):
+        c.drawString(1.5 * cm, top - (5.2 + k * 0.8) * cm, t_)
+    test_square(c, (W - 12.0) * cm, top - 12.5 * cm, 10, "10 × 10 cm")
     c.saveState()
     c.translate(0, H * cm)
     c.scale(cm, -cm)
