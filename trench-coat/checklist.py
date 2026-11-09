@@ -158,6 +158,10 @@ def new_rows(size):
     add("B. 몸판", "뒤품 > 앞품 (남성)", info["backW"] > info["frontW"], f"{info['backW']:.1f} / {info['frontW']:.1f}")
     arm_w = info["Wh"] - info["backW"] - info["frontW"]
     add("B. 몸판", "진동 너비 14~20cm", 14 <= arm_w <= 20, f"{arm_w:.1f}")
+    cb_ = LineString(S["back_arm"]).distance(Point(info["backW"], info["scye"])) / arm_w
+    cf_ = LineString(S["front_arm"]).distance(Point(info["Wh"] - info["frontW"], info["scye"])) / arm_w
+    add("B. 몸판", "뒤 진동 아래 모서리→곡선 = 진동 너비 × 0.18~0.24", 0.18 <= cb_ <= 0.24, f"{cb_:.3f}")
+    add("B. 몸판", "앞 진동 아래 모서리→곡선 = 진동 너비 × 0.14~0.20", 0.14 <= cf_ <= 0.20, f"{cf_:.3f}")
     depth = info["scye"] - (info["sp_b"][1] + info["sp_f"][1]) / 2
     add("B. 몸판", "진동 깊이/너비 비 1.1~1.5", 1.1 <= depth / arm_w <= 1.5, f"{depth / arm_w:.2f}")
     # 외곽선에서 직접: 옆목점 높이 → 중심선 밑단 높이

@@ -40,6 +40,7 @@ CHEST_EASE = 13.0  # 가슴 여유 (셔츠·니트 위에 입는 슬림 트렌�
 CAP_EASE = 2.5     # 소매산 오그림 (면 개버딘은 잘 오그라들지 않아 2~2.5)
 SLEEVE_ADD = 4.5
 BELT_W = 5.0       # 벨트 완성 폭
+FRONT_SCYE_K = 0.70  # 앞 진동 아래 곡선 조절점 (모서리→곡선 거리 ≈ 진동 너비 × 0.18)
 LOOP = BELT_W + 1  # 벨트고리 완성 길이 = 옆선 노치 간격 (벨트 폭 + 여유 1)   # 어깨패드 1 + 소매산 부풀림 1.5 + 손목 덮음 2
 
 SA = 1.0        # 기본 시접
@@ -378,8 +379,8 @@ def draft(size):
     f_mid = (Wh - frontW, sp_f[1] + (scye - sp_f[1]) * 0.55)
     front_arm1 = bez(sp_f, (sp_f[0] + nf_in[0] * 3, sp_f[1] + nf_in[1] * 3), (f_mid[0], f_mid[1] - 4), f_mid)
     front_arm_out = join(front_arm1,
-                         bez(f_mid, (f_mid[0], f_mid[1] + 0.5 * (scye - f_mid[1])),
-                             (sideX + 0.55 * (f_mid[0] - sideX), scye), (sideX, scye)))
+                         bez(f_mid, (f_mid[0], f_mid[1] + FRONT_SCYE_K * (scye - f_mid[1])),
+                             (sideX + FRONT_SCYE_K * (f_mid[0] - sideX), scye), (sideX, scye)))
     front_side, fh = side_and_hem([(sideX, scye), (sideX + 0.8, y_w), (sideX - 0.6, y_h), (sideX - flare, y_L)],
                                   1, Wh + DB, y_L)
     ce = (Wh + 2.5, fnd + 0.2)       # 칼라 끝점 (노치)
