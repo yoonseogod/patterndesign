@@ -568,6 +568,47 @@ def new_rows(size):
     add("K. 재단 목록", "심지 위치 = 요청(칼라·칼라밴드·안단·소매 밑단)",
         fuse_named == {"collar", "stand", "facing", "topsleeve", "undersleeve"}, ",".join(sorted(fuse_named)))
 
+    # T. 재단 목록 · 표지 숫자 ↔ 실제 값 (PDF에서 읽어 대조)
+    import re as _re
+    with pdfplumber.open(pdfp) as pdf:
+        t1 = (pdf.pages[0].extract_text() or "")
+        t2 = (pdf.pages[1].extract_text() or "")
+        npages = len(pdf.pages)
+    def num(pat, txt):
+        m_ = _re.search(pat, txt)
+        return float(m_.group(1)) if m_ else None
+    big_marks = sum(1 for d in P["front"].dots if d[2] > 1.0)
+    ep_marks = 2 * sum(1 for d in P["front"].dots if d[2] < 1.0)          # 앞판 2장(좌우)에 하나씩
+    latch_btn = len(P["collar"].dots) + 1                                  # 칼라 단추 + 탭 고정 단추
+    nb_big = num(r"앞 2\.3cm (\d+)개", t2)
+    nb_small = num(r"1\.6cm (\d+)개", t2)
+    add("T. 표지·목록 숫자", "앞 단추 개수 = 패턴 단추 표시 수", nb_big == big_marks, f"목록 {nb_big} / 표시 {big_marks}")
+    add("T. 표지·목록 숫자", "작은 단추 개수 = 견장 2 + 탭 2", nb_small == ep_marks + latch_btn, f"목록 {nb_small} / {ep_marks}+{latch_btn}")
+    chk = [("가슴둘레", r"완성 치수: 가슴둘레 ([\d.]+)cm", info["chest_garment"], 0.6),
+           ("옷길이", r"옷길이 ([\d.]+)cm", G.SIZES[size]["coat_len"], 0.1),
+           ("완성 소매길이", r"완성 치수:.*소매길이 ([\d.]+)cm", info["SLg"], 0.06),
+           ("기준 팔길이", r"팔길이\(어깨끝~손목\) ([\d.]+)cm", G.SIZES[size]["sleeve"], 0.06),
+           ("기준 가슴", r"가슴둘레 ([\d.]+)cm · 키", G.SIZES[size]["chest"], 0.1),
+           ("기준 키", r"키 ([\d.]+)cm", G.SIZES[size]["height"], 0.1)]
+    bad_num = []
+    for nm, pat, val, tol in chk:
+        m_ = _re.search(pat, t1, _re.M)
+        got = float(next(g for g in m_.groups() if g)) if m_ else None
+        if got is None or abs(got - val) > tol:
+            bad_num.append(f"{nm} 표지 {got} / 실제 {val:.1f}")
+    pages_txt = num(r"총 (\d+)장", t1)
+    if pages_txt != npages - 2:
+        bad_num.append(f"장수 표지 {pages_txt} / 실제 {npages - 2}")
+    belt_txt = num(r"벨트: (\d+) ×", t2)
+    if belt_txt != info["belt_len"]:
+        bad_num.append(f"벨트 표지 {belt_txt} / 실제 {info['belt_len']}")
+    fe = G.fabric_estimate(size)
+    for nm, (w, v) in fe.items():
+        got = num(nm + r" " + str(w) + r"cm 폭 약 ([\d.]+)m", t2)
+        if got is None or abs(got - v) > 0.051:
+            bad_num.append(f"{nm} 소요량 표지 {got} / 실제 {v:.2f}")
+    add("T. 표지·목록 숫자", "표지·목록의 숫자(완성·기준 치수, 장수, 벨트, 원단)가 실제 계산값과 같음", not bad_num, "; ".join(bad_num))
+
     # O. 확인 불가
     for name in ("원단을 입혔을 때 주름·당김·드레이프", "칼라가 실제로 꺾이는 모양과 라펠 롤",
                  "어깨 경사·패드 두께가 체형에 맞는지", "소매가 달린 각도(앞뒤로 도는지)", "원단 수축·늘어남"):

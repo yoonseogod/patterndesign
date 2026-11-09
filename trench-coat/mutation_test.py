@@ -126,7 +126,34 @@ def m_hem_mirror(ps, info):
     if not G.NET:                       # 시접 포함 버전 재단선만 0.4cm 밀어 밑단 시접 모서리를 어긋나게
         b.cut = affinity.translate(b.cut, 0.4, 0)
 
+def m_mid_notch(ps, info):
+    for k in ("topsleeve", "undersleeve"):
+        p = P(ps, k); p.notches = [n for n in p.notches if n[1] <= info["CH"] + 0.01 or abs(n[0] - max(q[0] for q in p.notches)) < 1e-6]
+
+def m_loop_gap(ps, info):
+    f = P(ps, "front")
+    f.notches = [(x, y + 1.0) if (abs(x - info["sideX"]) < 2 and y > info["y_w"]) else (x, y) for x, y in f.notches]
+
+def m_belt(ps, info):
+    info["belt_len"] += 30
+
+def m_scye(ps, info):
+    info["frontW"] += 1.5
+
+def m_short_grain(ps, info):
+    s = P(ps, "stand"); (a, b) = s.grain; s.grain = (a, (a[0], a[1] + 1.0 * (1 if b[1] > a[1] else -1)))
+
+def m_collar_ratio(ps, info):
+    c = P(ps, "collar"); mx = max(q[0] for q in c.outline)
+    c.outline = [(x + 3, y) if abs(x - mx) < 1e-6 else (x, y) for x, y in c.outline]; rebuild(c)
+
 MUTATIONS = [
+    ("소매 앞솔기 팔꿈치 노치 삭제", m_mid_notch, ["중간 노치"], False),
+    ("벨트고리 노치 간격 어긋남", m_loop_gap, ["벨트고리 노치"], False),
+    ("벨트 30cm 길게", m_belt, ["벨트 = 실제"], False),
+    ("앞 진동 모서리 어긋남", m_scye, ["앞 진동"], False),
+    ("칼라밴드 식서 1cm로", m_short_grain, ["식서 화살표 길이"], False),
+    ("칼라 끝이 라펠보다 길어짐", m_collar_ratio, ["칼라 앞끝"], False),
     ("주머니감 조각 모양이 위치선과 다름", m_bag_shape, ["주머니감 조각"], False),
     ("주머니감이 안단까지 들어감", m_bag_facing, ["안단 안쪽선"], False),
     ("팔꿈치선 5cm 아래로", m_elbow, ["팔꿈치선"], False),

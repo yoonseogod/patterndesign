@@ -1276,7 +1276,7 @@ def cover_page(c, size, info, pieces, rows, used):
     c.drawString(1.5 * cm, y, "기준 신체 치수")
     c.setFont("KR", 9)
     rows_t = [f"가슴둘레 {m['chest']}cm · 키 {m['height']}cm · 목둘레 {m['neck']}cm",
-              f"뒷목점~허리 {m['nape_waist']}cm · 소매길이 {m['sleeve']}cm",
+              f"뒷목점~허리 {m['nape_waist']}cm · 팔길이(어깨끝~손목) {m['sleeve']}cm",
               f"완성 치수: 가슴둘레 {info['chest_garment']:.0f}cm · 옷길이 {info['length']}cm · "
               f"소매길이 {info['SLg']:.1f}cm"]
     for i, s in enumerate(rows_t):
