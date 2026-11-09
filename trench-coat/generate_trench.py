@@ -261,16 +261,25 @@ class Piece:
             cut = cut.intersection(box(self.fold_x, miny - 1, maxx + 1, maxy + 1))
         self.poly = poly
         self.cut = cut
-        self.cut_pts = list(cut.exterior.coords)
+        # 재단선이 여러 덩어리로 끊어지면(정상 패턴에선 없음) 가장 큰 덩어리로 그리고, 검사에서 잡는다
+        main_part = max(getattr(cut, "geoms", [cut]), key=lambda g: g.area)
+        self.cut_pts = list(main_part.exterior.coords)
         self.fuse_poly = None
         if self.fuse == "all":
             self.fuse_poly = cut
         elif self.fuse == "hem" and self.hem:
+            # 밑단 심지: 밑단선과 나란히, 완성선 위로 (FUSE_HEM − 밑단 시접)만큼, 아래로는 시접 끝까지
             hp, depth = self.hem
-            up = FUSE_HEM - depth      # 밑단 시접 끝에서 위로 5cm
-            band = Polygon([(p[0], p[1] - up) for p in hp] +
-                           [(p[0], p[1] + depth + 0.01) for p in reversed(hp)]).buffer(self.sa + 0.5, join_style=2)
-            band = band.intersection(box(-1e4, min(p[1] for p in hp) - up, 1e4, 1e4))
+            up = FUSE_HEM - depth
+            down = (depth if not NET else 0) + 0.01
+            u = unit(hp[0], hp[-1])
+            n_up = perp_toward(u, want_y=-1)
+            ext = self.sa + 0.5
+            a_, b_ = hp[0], hp[-1]
+            line = [(a_[0] - u[0] * ext, a_[1] - u[1] * ext)] + list(hp) + [(b_[0] + u[0] * ext, b_[1] + u[1] * ext)]
+            upper = [(q[0] + n_up[0] * up, q[1] + n_up[1] * up) for q in line]
+            lower = [(q[0] - n_up[0] * down, q[1] - n_up[1] * down) for q in line]
+            band = Polygon(upper + list(reversed(lower))).buffer(0)
             self.fuse_poly = band.intersection(cut)
 
     def bounds(self):
@@ -761,7 +770,8 @@ def _pack(pieces, cols, keyf, step=0.5):
 
 
 def layout(pieces, col_options=(4, 5, 6)):
-    """여러 배치(열 수 4~6 × 정렬 순서 4가지)를 시험해 인쇄할 A4 장수가 가장 적은 것을 고른다."""
+    """여러 배치(열 수 × 정렬 순서 4가지 × 아래로 0~6cm 이동)를 시험해, 인쇄할 A4 장수가 가장 적고
+    거의 빈 장(패턴 3% 미만)이 없는 것을 고른다."""
     global COLS
     from shapely import affinity
     area = lambda p: -(p.bounds()[2] - p.bounds()[0]) * (p.bounds()[3] - p.bounds()[1])
@@ -773,20 +783,23 @@ def layout(pieces, col_options=(4, 5, 6)):
             r = _pack(pieces, cols, keyf)
             if r is None:
                 continue
-            offsets, rows = r
-            moved = [affinity.translate(p.cut, *offsets[id(p)]) for p in pieces]
-            used = 0
-            slivers = 0
-            for ri in range(rows):
-                for ci in range(cols):
-                    t = box(ci * TILE_W, ri * TILE_H, (ci + 1) * TILE_W, (ri + 1) * TILE_H)
-                    a = sum(m.intersection(t).area for m in moved)
-                    if a > 0:
-                        used += 1
-                        slivers += a < 0.03 * TILE_W * TILE_H
-            score = (used, slivers, rows)
-            if best is None or score < best[0]:
-                best = (score, cols, offsets, rows)
+            offsets0, _ = r
+            for dy in (0, 1, 2, 3, 4, 5, 6):            # 배치 전체를 아래로 조금씩: 칸 경계에 걸리는 위치가 바뀜
+                offsets = {k: (v[0], v[1] + dy) for k, v in offsets0.items()}
+                moved = [affinity.translate(p.cut, *offsets[id(p)]) for p in pieces]
+                rows = math.ceil((max(m.bounds[3] for m in moved) + GAP / 2) / TILE_H)
+                used = 0
+                slivers = 0
+                for ri in range(rows):
+                    for ci in range(cols):
+                        t = box(ci * TILE_W, ri * TILE_H, (ci + 1) * TILE_W, (ri + 1) * TILE_H)
+                        a = sum(m.intersection(t).area for m in moved)
+                        if a > 0.05:                     # tile_used와 같은 기준
+                            used += 1
+                            slivers += a < 0.03 * TILE_W * TILE_H
+                score = (used + slivers, slivers, rows, dy)   # 거의 빈 장은 낭비로 한 장 더 친다
+                if best is None or score < best[0]:
+                    best = (score, cols, offsets, rows)
     _, COLS, offsets, rows = best
     for p in pieces:
         p.moved(*offsets[id(p)])

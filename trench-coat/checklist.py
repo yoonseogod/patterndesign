@@ -12,7 +12,7 @@ import re
 import subprocess
 import sys
 
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, box
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -66,9 +66,40 @@ def hem_mirror_errors(size):
             out_dir = G.perp_toward(dm, want_x=(end[0] - nxt_hem[0]))
             target = (C[0] + out_dir[0] * p.sa, C[1] + out_dir[1] * p.sa)
             # 재단선이 target 점을 지나야 함: 목표점과 재단 외곽선 거리
-            err = p.cut.exterior.distance(Point(target))
+            err = p.cut.boundary.distance(Point(target))
             out.append((p.name, round(err, 2)))
     return out
+
+
+
+def fuse_report(size):
+    rep = []
+    for net in (True, False):
+        G.NET = net
+        try:
+            ps, _ = G.draft(size)
+        finally:
+            G.NET = True
+        for p in ps:
+            if p.fuse == "all":
+                ref = p.poly if net else p.cut
+                rep.append((net, p.name, "전체", round(abs(p.fuse_poly.area - ref.area) / ref.area * 100, 2)))
+            elif p.fuse == "hem":
+                hp, depth = p.hem
+                a, b = hp[0], hp[-1]
+                mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+                u = G.unit(a, b); n = G.perp_toward(u, want_y=-1)        # 위쪽
+                lo = depth if not net else 0.0                           # 밑단 아래쪽 끝 (시접 포함이면 시접 끝)
+                line = LineString([(mid[0] - n[0] * lo, mid[1] - n[1] * lo), (mid[0] + n[0] * 10, mid[1] + n[1] * 10)])
+                seg = p.fuse_poly.intersection(line)
+                h = seg.length
+                # 폭: 띠 가운데 높이에서 가로로 자른 길이 vs 조각 폭
+                yc = mid[1] - (G.FUSE_HEM - depth) / 2 if net else mid[1] + depth / 2 - G.FUSE_HEM / 2 + depth / 2
+                cut_ref = p.poly if net else p.cut
+                wline = LineString([(mid[0] - 60, yc), (mid[0] + 60, yc)])
+                cover = p.fuse_poly.intersection(wline).length / max(1e-6, cut_ref.intersection(wline).length)
+                rep.append((net, p.name, "밑단", round(h, 2), round(cover * 100, 1)))
+    return rep
 
 
 
@@ -351,7 +382,9 @@ def new_rows(size):
             M = G.MARGIN * 28.3465                     # 실제 인쇄 칸(잘림 상자) 위치
             inside = M <= ch["x0"] and ch["x1"] <= pg.width - M and M <= ch["top"] and ch["bottom"] <= pg.height - M
             near_page = -20 <= ch["x0"] and ch["x1"] <= pg.width + 20 and -20 <= ch["top"] and ch["bottom"] <= pg.height + 20
-            header = near_page and (abs(ch["size"] - 7) < 0.05 or abs(ch["size"] - 9) < 0.05)
+            mtx = ch.get("matrix") or (1, 0, 0, 1, 0, 0)
+            unrotated = abs(mtx[1]) < 1e-6 and abs(mtx[2]) < 1e-6   # 머리글·바닥글은 회전 없음 (시접 글자는 회전)
+            header = near_page and unrotated and (abs(ch["size"] - 7) < 0.05 or abs(ch["size"] - 9) < 0.05)
             return inside or header                    # 칸 안 글자 + 쪽 머리글·바닥글(7·9pt)
         edge = [f"{k + 1}쪽" for k, pg in enumerate(pdf.pages)
                 if any(ch["x0"] < 14.2 or ch["x1"] > pg.width - 14.2 or ch["top"] < 14.2 or ch["bottom"] > pg.height - 14.2
@@ -359,6 +392,28 @@ def new_rows(size):
         map_shapes = len([c for c in pdf.pages[1].curves]) + len([r for r in pdf.pages[1].rects if r["width"] < 200])
     add("R. 인쇄", "모든 쪽의 글자가 종이 끝에서 5mm 이상", not edge, ",".join(edge[:5]))
     add("R. 인쇄", "2쪽 배치도에 조각이 모두 그려짐 (조각 수 이상)", map_shapes >= len(pieces), f"{map_shapes} / {len(pieces)}")
+
+    # S7. 심지 띠
+    fr = fuse_report(size)
+    bad_all = [f"{r[1]}" for r in fr if r[2] == "전체" and r[3] > 0.5]
+    bad_hem = [f"{'시접없음' if r[0] else '시접포함'} {r[1]} {r[3]}cm/{r[4]}%" for r in fr if r[2] == "밑단"
+               and (abs(r[3] - (G.FUSE_HEM - G.SLEEVE_HEM if r[0] else G.FUSE_HEM)) > 0.1 or r[4] < 99)]
+    add("S7. 심지", "전체 심지 조각: 빗금 = 조각 전체", not bad_all, ",".join(bad_all))
+    add("S7. 심지", "소매 밑단 심지 띠 폭 (시접 없음 1cm / 포함 5cm) · 소매 폭 전체", not bad_hem, "; ".join(bad_hem))
+
+    # S8. 거의 빈 페이지
+    import copy as _copy
+    lp = _copy.deepcopy(pieces)                      # 배치는 복사본으로 (원본 좌표는 다른 검사가 씀)
+    G.layout(lp)
+    rows_ = int(max(p.cut.bounds[3] for p in lp) // G.TILE_H) + 1
+    thin_pages = []
+    for ri in range(rows_):
+        for ci in range(G.COLS):
+            t = box(ci * G.TILE_W, ri * G.TILE_H, (ci + 1) * G.TILE_W, (ri + 1) * G.TILE_H)
+            a_ = sum(p.cut.intersection(t).area for p in lp)
+            if G.tile_used(lp, ci, ri) and a_ < 0.03 * G.TILE_W * G.TILE_H:
+                thin_pages.append(f"{G.tile_name(ci, ri)}({a_:.0f}cm²)")
+    add("S8. 페이지", "인쇄하는 장마다 패턴이 3% 이상 (선 몇 cm만 있는 장 없음)", not thin_pages, ", ".join(thin_pages))
 
     # S5. 원단 소요량 (어림): 일반 범위 · 사이즈가 커지면 줄지 않음
     est = {z: G.fabric_estimate(z) for z in G.SIZES}
