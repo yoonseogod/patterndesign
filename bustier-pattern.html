@@ -1,0 +1,322 @@
+<title>뷔스티에 원형 제도</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: drafting table — controls column beside a large gridded pattern sheet; stacks on phones */
+:root {
+  --bg: #eef1f3;
+  --sheet: #fbfcfd;
+  --grid: #d9e2ea;
+  --grid-major: #b7c6d4;
+  --ink: #1c2b3a;
+  --muted: #5d6e7f;
+  --piece: #ffffff;
+  --sa: #dbe7f2;
+  --mark: #c2412d;
+  --accent: #2e5f8a;
+  --line: #cbd5de;
+  --display: "Gowun Batang", "Noto Serif KR", serif;
+  --body: "Noto Sans KR", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121820; --sheet: #18212b; --grid: #223040; --grid-major: #31455a; --ink: #e3ebf2; --muted: #93a5b6;
+  --piece: #1f2b38; --sa: #2a3d52; --mark: #ef7a63; --accent: #7fb2de; --line: #2c3a48; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121820; --sheet: #18212b; --grid: #223040; --grid-major: #31455a; --ink: #e3ebf2; --muted: #93a5b6;
+  --piece: #1f2b38; --sa: #2a3d52; --mark: #ef7a63; --accent: #7fb2de; --line: #2c3a48; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.55; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; flex-direction: column; gap: 4px; margin-bottom: 20px; }
+h1 { font-family: var(--display); font-size: 1.9rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 0; max-width: 64ch; }
+.layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.panel { background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel h2, .steps h2 { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0; font-weight: 500; }
+.field { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; }
+.field label { font-size: 0.92rem; }
+.field output { font-family: var(--mono); font-size: 0.88rem; font-variant-numeric: tabular-nums; color: var(--accent); }
+.field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 0.78rem; padding: 4px 0; }
+td { padding: 4px 0; border-bottom: 1px dashed var(--line); }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td.warn { color: var(--mark); }
+.right { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.sheet { background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
+.scroll { overflow-x: auto; }
+.sheet svg { display: block; width: 100%; height: auto; min-width: 640px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: var(--muted); padding: 10px 14px; border-top: 1px solid var(--line); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+.note { font-size: 0.8rem; color: var(--muted); margin: 0; }
+.steps { background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px 28px; }
+.steps section { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.steps ol, .steps ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; max-width: 60ch; }
+.steps b { font-weight: 700; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>뷔스티에 원형 제도</h1>
+    <p class="sub">드레이핑 마네킹 치수로 그린 6조각 뷔스티에(반쪽) 패턴이에요. 마네킹을 직접 재서 슬라이더를 맞추면 조각이 1cm 격자 위에 바로 다시 그려져요.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>마네킹 치수 (cm)</h2>
+      <div class="field"><label for="bust">가슴둘레</label><output id="o-bust"></output><input type="range" id="bust" min="76" max="104" step="0.5" value="84"></div>
+      <div class="field"><label for="under">밑가슴둘레</label><output id="o-under"></output><input type="range" id="under" min="62" max="90" step="0.5" value="70"></div>
+      <div class="field"><label for="waist">허리둘레</label><output id="o-waist"></output><input type="range" id="waist" min="56" max="90" step="0.5" value="64"></div>
+      <div class="field"><label for="hip">밑단 둘레 (허리 아래 12cm)</label><output id="o-hip"></output><input type="range" id="hip" min="74" max="106" step="0.5" value="86"></div>
+      <div class="field"><label for="bpi">B.P 간격</label><output id="o-bpi"></output><input type="range" id="bpi" min="14" max="22" step="0.5" value="17"></div>
+      <div class="field"><label for="bpH">허리 → B.P 높이</label><output id="o-bpH"></output><input type="range" id="bpH" min="13" max="22" step="0.5" value="17"></div>
+      <div class="field"><label for="ubH">허리 → 밑가슴 높이</label><output id="o-ubH"></output><input type="range" id="ubH" min="6" max="13" step="0.5" value="9"></div>
+
+      <h2>디자인 (허리선 기준 높이)</h2>
+      <div class="field"><label for="cfTop">앞중심 윗선</label><output id="o-cfTop"></output><input type="range" id="cfTop" min="15" max="26" step="0.5" value="19"></div>
+      <div class="field"><label for="cupTop">컵 꼭대기</label><output id="o-cupTop"></output><input type="range" id="cupTop" min="20" max="32" step="0.5" value="25"></div>
+      <div class="field"><label for="sideTop">옆선 윗선</label><output id="o-sideTop"></output><input type="range" id="sideTop" min="17" max="28" step="0.5" value="22"></div>
+      <div class="field"><label for="cbTop">뒤중심 윗선</label><output id="o-cbTop"></output><input type="range" id="cbTop" min="14" max="28" step="0.5" value="20"></div>
+      <div class="field"><label for="len">허리 아래 길이</label><output id="o-len"></output><input type="range" id="len" min="4" max="20" step="0.5" value="12"></div>
+
+      <h2>여유분 · 시접</h2>
+      <div class="field"><label for="ease">전체 여유분</label><output id="o-ease"></output><input type="range" id="ease" min="-6" max="3" step="0.5" value="0"></div>
+      <div class="field"><label for="sa">시접</label><output id="o-sa"></output><input type="range" id="sa" min="0" max="2.5" step="0.5" value="1.5"></div>
+      <p class="note">기본값은 국내 55 사이즈 드레이핑 마네킹 기준 예시예요. 마네킹은 조여지지 않으니 여유분은 0으로 두고, 사람이 입을 때는 허리를 −3~−5로 줄여요.</p>
+    </aside>
+
+    <div class="right">
+      <section class="sheet">
+        <div class="scroll"><svg id="svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="뷔스티에 6조각 반쪽 패턴"></svg></div>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--piece);border:1.5px solid var(--ink)"></i>완성선</span>
+          <span><i class="sw" style="background:var(--sa)"></i>시접</span>
+          <span><i class="sw" style="background:var(--mark)"></i>맞춤점 · B.P</span>
+          <span>WL 허리선 · UB 밑가슴선 · BL 가슴선</span>
+          <span>격자 1칸 = 1cm</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>조각 치수 · 솔기 길이 확인</h2>
+        <div class="scroll"><table id="calc"></table></div>
+        <p class="note">이웃한 두 조각의 솔기 길이 차이가 0.5cm 넘으면 빨간색으로 표시돼요. 그럴 땐 가봉에서 짧은 쪽에 맞춰 윗선을 다듬어요.</p>
+      </section>
+
+      <section class="steps">
+        <section>
+          <h2>마네킹에서 재는 곳</h2>
+          <ul>
+            <li><b>가슴둘레</b>: B.P를 지나는 수평 둘레</li>
+            <li><b>밑가슴둘레</b>: 가슴이 끝나는 바로 아래 둘레</li>
+            <li><b>허리둘레</b>: 마네킹의 허리 테이프 위치</li>
+            <li><b>밑단 둘레</b>: 허리에서 12cm 아래 둘레. 길이를 바꾸면 그 높이에서 재요</li>
+            <li><b>높이</b>: 모두 앞중심 쪽에서 허리선부터 위로 재요</li>
+          </ul>
+        </section>
+        <section>
+          <h2>광목 토일 순서</h2>
+          <ol>
+            <li>패턴을 옮겨 그리고, 광목을 <b>두 겹으로</b> 재단해요</li>
+            <li>①은 골선으로 1장, 나머지는 좌우 2장씩 잘라요</li>
+            <li>①→⑥ 순서로 박아요. 맞춤점(WL·UB·B.P)을 꼭 맞춰요</li>
+            <li>솔기마다 시접을 한쪽으로 꺾어서 박아 본 채널을 만들고 케이블타이를 넣어요</li>
+            <li>마네킹에 입혀서 뒤중심을 핀으로 여며요. 실제 옷에는 지퍼를 달아요</li>
+          </ol>
+        </section>
+        <section>
+          <h2>마네킹에서 고칠 것</h2>
+          <ul>
+            <li><b>컵이 뜨면</b> ①·② 솔기의 B.P 위아래를 줄여요</li>
+            <li><b>컵이 눌리면</b> 같은 솔기를 B.P 근처에서 0.3~0.5cm씩 키워요</li>
+            <li><b>허리가 남으면</b> ③·④ 옆선에서 먼저 집어요</li>
+            <li>윗선 모양은 입힌 채로 마커로 다시 그려요</li>
+            <li>부채꼴 주름 위치도 이때 함께 그려 넣어요</li>
+          </ul>
+        </section>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const ids = ["bust","under","waist","hip","bpi","bpH","ubH","cfTop","cupTop","sideTop","cbTop","len","ease","sa"];
+const f = n => (Math.round(n * 10) / 10).toFixed(1);
+const PIECES = [
+  { n: "①", name: "앞중심", cut: "골선 1장" },
+  { n: "②", name: "앞옆", cut: "2장" },
+  { n: "③", name: "옆앞", cut: "2장" },
+  { n: "④", name: "옆뒤", cut: "2장" },
+  { n: "⑤", name: "뒤옆", cut: "2장" },
+  { n: "⑥", name: "뒤중심", cut: "2장 · 지퍼" },
+];
+
+// Panel widths (cm) at each level: h = hem, w = waist, u = underbust, b = bust, t = top edge.
+function widths(o) {
+  const e = o.ease / 2;
+  const L = { b: o.bust / 2 + e, u: o.under / 2 + e, w: o.waist / 2 + e, h: o.hip / 2 + e };
+  const fr = { b: 0.525, u: 0.514, w: 0.516, h: 0.512 };
+  const F = {}, Bk = {};
+  for (const k in L) { F[k] = L[k] * fr[k]; Bk[k] = L[k] - F[k]; }
+  const p1 = { b: Math.min(o.bpi / 2, F.b * 0.6), u: F.u * 0.417, w: F.w * 0.424, h: F.h * 0.386 };
+  const fs = { b: [0.54, 0.46], u: [0.524, 0.476], w: [0.526, 0.474], h: [0.519, 0.481] };
+  const bs = { b: [0.3, 0.35, 0.35], u: [0.294, 0.353, 0.353], w: [0.29, 0.355, 0.355], h: [0.31, 0.357, 0.333] };
+  const W = [p1, {}, {}, {}, {}, {}];
+  for (const k in L) {
+    const r = F[k] - p1[k];
+    W[1][k] = r * fs[k][0]; W[2][k] = r * fs[k][1];
+    W[3][k] = Bk[k] * bs[k][0]; W[4][k] = Bk[k] * bs[k][1]; W[5][k] = Bk[k] * bs[k][2];
+  }
+  const kTop = [0.86, 0.82, 0.95, 1, 1, 1];
+  W.forEach((w, i) => w.t = w.b * kTop[i]);
+  return W;
+}
+
+// Catmull-Rom through points -> cubic segments [p0, c1, c2, p3]
+function crSegs(pts) {
+  const s = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    s.push([p1, [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6], p2]);
+  }
+  return s;
+}
+function bez(seg, t) {
+  const [a, b, c, d] = seg, u = 1 - t;
+  return [0, 1].map(j => u*u*u*a[j] + 3*u*u*t*b[j] + 3*u*t*t*c[j] + t*t*t*d[j]);
+}
+function segLen(segs) {
+  let L = 0;
+  for (const s of segs) { let p = s[0]; for (let i = 1; i <= 24; i++) { const q = bez(s, i / 24); L += Math.hypot(q[0] - p[0], q[1] - p[1]); p = q; } }
+  return L;
+}
+
+function draft(o) {
+  const W = widths(o);
+  const ds = o.cbTop - o.sideTop;
+  const tops = [o.cfTop, o.cupTop, (o.cupTop + o.sideTop) / 2 + 0.5, o.sideTop, o.sideTop + ds / 3, o.sideTop + 2 * ds / 3, o.cbTop];
+  const ubY = Math.min(o.ubH, o.bpH - 3);
+  return W.map((w, i) => {
+    const maxW = Math.max(w.h, w.w, w.u, w.b, w.t);
+    const xs = (k, side) => {
+      if (i === 0) return side === "L" ? 0 : w[k];
+      if (i === 5) return side === "R" ? maxW : maxW - w[k];
+      return side === "L" ? (maxW - w[k]) / 2 : (maxW + w[k]) / 2;
+    };
+    const edge = side => {
+      const top = side === "L" ? tops[i] : tops[i + 1];
+      const bot = (i === 0 && side === "L") ? -o.len - 1.5 : -o.len;
+      return [[xs("h", side), bot], [xs("w", side), 0], [xs("u", side), ubY], [xs("b", side), o.bpH], [xs("t", side), Math.max(top, o.bpH + 1.5)]];
+    };
+    const Lp = edge("L"), Rp = edge("R");
+    const Ls = crSegs(Lp), Rs = crSegs(Rp);
+    const a = Lp[4], b = Rp[4], dx = b[0] - a[0], dy = b[1] - a[1];
+    const top = i === 0
+      ? [a, [a[0] + dx * 0.3, a[1] + dy * 0.75], [a[0] + dx * 0.68, b[1] + 1.0], b]
+      : [a, [a[0] + dx / 3, a[1] + dy / 3 + (i < 3 ? 0.5 : 0.2)], [a[0] + 2 * dx / 3, a[1] + 2 * dy / 3 + (i < 3 ? 0.3 : 0.2)], b];
+    return { i, w, maxW, Lp, Rp, Ls, Rs, top, lenL: segLen(Ls), lenR: segLen(Rs), ubY };
+  });
+}
+
+function sheet(o, light) {
+  const D = draft(o);
+  const sa = o.sa, gap = 2 * sa + 2.5, m = 2 + sa;
+  const yMax = Math.max(o.cfTop, o.cupTop + 1, o.sideTop, o.cbTop) + m + 1;
+  const yMin = -o.len - 1.5 - m - 3;
+  let ox = m;
+  const offs = D.map(p => { const x = ox; ox += p.maxW + gap; return x; });
+  const vw = ox - gap + m, vh = yMax - yMin;
+  const T = (p, x) => `${f(x + p[0])} ${f(yMax - p[1])}`;
+  const segPath = (segs, x) => segs.map(s => `C${T(s[1], x)} ${T(s[2], x)} ${T(s[3], x)}`).join(" ");
+  const rev = segs => segs.slice().reverse().map(s => [s[3], s[2], s[1], s[0]]);
+
+  const c = light ? { ink: "#1c2b3a", muted: "#5d6e7f", piece: "#fff", sa: "#dbe7f2", mark: "#c2412d", accent: "#2e5f8a", sheet: "#fff" }
+                  : { ink: "var(--ink)", muted: "var(--muted)", piece: "var(--piece)", sa: "var(--sa)", mark: "var(--mark)", accent: "var(--accent)", sheet: "var(--sheet)" };
+
+  const g = D.map((p, k) => {
+    const x = offs[k], P = PIECES[k];
+    const d = `M${T(p.Lp[0], x)} ${segPath(p.Ls, x)} C${T(p.top[1], x)} ${T(p.top[2], x)} ${T(p.top[3], x)} ${segPath(rev(p.Rs), x)} L${T(p.Lp[0], x)} Z`;
+    const notch = (pt, dir) => `<path d="M${T(pt, x)} l${dir * 0.9} 0" stroke="${c.mark}" stroke-width="0.18"/>`;
+    const lvl = (j, tag) => `<line x1="${f(x + p.Lp[j][0])}" y1="${f(yMax - p.Lp[j][1])}" x2="${f(x + p.Rp[j][0])}" y2="${f(yMax - p.Rp[j][1])}" stroke="${c.muted}" stroke-width="0.08" stroke-dasharray="0.6 0.4"/>
+      <text x="${f(x + p.Rp[j][0] - 0.3)}" y="${f(yMax - p.Rp[j][1] - 0.35)}" text-anchor="end" class="sm">${tag}</text>`;
+    const cx = x + p.maxW / 2;
+    const gy1 = yMax - (-1), gy2 = yMax - (p.ubY - 0.5);
+    const labY = yMax - (-o.len + 2.5);
+    let marks = [1, 2].map(j => notch(p.Lp[j], -1) + notch(p.Rp[j], 1)).join("");
+    if (k === 0) marks += `<circle cx="${f(x + p.Rp[3][0])}" cy="${f(yMax - o.bpH)}" r="0.35" fill="${c.mark}"/><text x="${f(x + p.Rp[3][0] - 0.7)}" y="${f(yMax - o.bpH + 0.35)}" text-anchor="end" class="mk">B.P</text>`;
+    if (k === 1) marks += `<circle cx="${f(x + p.Lp[3][0])}" cy="${f(yMax - o.bpH)}" r="0.35" fill="${c.mark}"/>`;
+    const clip = k === 0 ? `clip-path="url(#cf${light ? "p" : ""})"` : "";
+    return `<g>
+      ${k === 0 ? `<clipPath id="cf${light ? "p" : ""}"><rect x="${f(x)}" y="${f(yMax - 60)}" width="40" height="120"/></clipPath>` : ""}
+      ${sa > 0 ? `<path d="${d}" ${clip} fill="${c.sa}" stroke="${c.sa}" stroke-width="${sa * 2}" stroke-linejoin="round"/>` : ""}
+      <path d="${d}" fill="${c.piece}" stroke="${c.ink}" stroke-width="0.16" stroke-linejoin="round"/>
+      ${lvl(1, "WL")}${lvl(2, "UB")}${lvl(3, "BL")}
+      ${marks}
+      <g stroke="${c.accent}" stroke-width="0.12" fill="${c.accent}">
+        <line x1="${f(cx)}" y1="${f(gy1)}" x2="${f(cx)}" y2="${f(gy2)}"/>
+        <path d="M${f(cx)} ${f(gy2)} l-0.5 1.4 h1 z M${f(cx)} ${f(gy1)} l-0.5 -1.4 h1 z" stroke="none"/>
+      </g>
+      <text x="${f(cx + 0.9)}" y="${f(labY)}" class="lg" transform="rotate(-90 ${f(cx + 0.9)} ${f(labY)})">${P.n} ${P.name}</text>
+      <text x="${f(cx - 1.6)}" y="${f(labY)}" class="sm" transform="rotate(-90 ${f(cx - 1.6)} ${f(labY)})">${P.cut}</text>
+      ${k === 0 ? `<text x="${f(x - 0.5)}" y="${f(yMax - 4)}" class="sm" transform="rotate(-90 ${f(x - 0.5)} ${f(yMax - 4)})">CF · 골선</text>` : ""}
+      ${k === 5 ? `<text x="${f(x + p.maxW + 0.5)}" y="${f(yMax - 4)}" class="sm" transform="rotate(90 ${f(x + p.maxW + 0.5)} ${f(yMax - 4)})">CB · 지퍼</text>` : ""}
+    </g>`;
+  }).join("");
+
+  const style = `<style>.sm{font:0.85px ${light ? "'Noto Sans KR', sans-serif" : "var(--mono)"};fill:${c.muted}}.mk{font:700 0.85px 'Noto Sans KR', sans-serif;fill:${c.mark}}.lg{font:700 1.5px 'Noto Sans KR', sans-serif;fill:${c.ink}}</style>`;
+  return { D, vw, vh, yMin, yMax, style, body: g, c };
+}
+
+function render() {
+  const o = Object.fromEntries(ids.map(k => [k, parseFloat($(k).value)]));
+  ids.forEach(k => $("o-" + k).textContent = (k === "ease" && o[k] > 0 ? "+" : "") + f(o[k]) + " cm");
+  const S = sheet(o, false);
+  $("svg").setAttribute("viewBox", `0 0 ${f(S.vw)} ${f(S.vh)}`);
+  $("svg").innerHTML = `
+    <defs>
+      <pattern id="g1" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="var(--grid)" stroke-width="0.05"/></pattern>
+      <pattern id="g5" width="5" height="5" patternUnits="userSpaceOnUse"><rect width="5" height="5" fill="url(#g1)"/><path d="M5 0H0V5" fill="none" stroke="var(--grid-major)" stroke-width="0.08"/></pattern>
+    </defs>${S.style}
+    <rect width="${f(S.vw)}" height="${f(S.vh)}" fill="var(--sheet)"/>
+    <rect width="${f(S.vw)}" height="${f(S.vh)}" fill="url(#g5)"/>
+    ${S.body}`;
+
+  const rows = S.D.map((p, k) => `<tr><td>${PIECES[k].n} ${PIECES[k].name}</td><td class="n">${f(p.w.b)}</td><td class="n">${f(p.w.u)}</td><td class="n">${f(p.w.w)}</td><td class="n">${f(p.w.h)}</td></tr>`).join("");
+  const sum = key => S.D.reduce((a, p) => a + p.w[key], 0) * 2;
+  const seams = S.D.slice(0, 5).map((p, k) => {
+    const dl = Math.abs(p.lenR - S.D[k + 1].lenL);
+    return `<tr><td>${PIECES[k].n}–${PIECES[k + 1].n} 솔기</td><td class="n" colspan="2">${f(p.lenR)} / ${f(S.D[k + 1].lenL)}</td><td class="n ${dl > 0.5 ? "warn" : ""}" colspan="2">차이 ${f(dl)}</td></tr>`;
+  }).join("");
+  $("calc").innerHTML = `<tr><th>조각 (완성선 폭)</th><th class="n">가슴</th><th class="n">밑가슴</th><th class="n">허리</th><th class="n">밑단</th></tr>${rows}
+    <tr><td><b>전체 둘레</b></td><td class="n"><b>${f(sum("b"))}</b></td><td class="n"><b>${f(sum("u"))}</b></td><td class="n"><b>${f(sum("w"))}</b></td><td class="n"><b>${f(sum("h"))}</b></td></tr>
+    <tr><th colspan="5" style="padding-top:12px">솔기 길이 (왼쪽 조각 / 오른쪽 조각)</th></tr>${seams}`;
+}
+
+// 1:1 A4 tiled pages (used to make the printable PDF outside the viewer)
+window.tiledPages = function (o) {
+  o = o || Object.fromEntries(ids.map(k => [k, parseFloat($(k).value)]));
+  const S = sheet(o, true);
+  const pw = 19, ph = 27.7, cols = Math.ceil(S.vw / pw), rows = Math.ceil(S.vh / ph);
+  const pages = [];
+  for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) {
+    const x0 = q * pw, y0 = r * ph, id = String.fromCharCode(65 + r) + (q + 1);
+    const cross = [[x0, y0], [x0 + pw, y0], [x0, y0 + ph], [x0 + pw, y0 + ph]].map(([x, y]) => `<path d="M${x - 1} ${y}h2M${x} ${y - 1}v2" stroke="#000" stroke-width="0.04"/>`).join("");
+    const test = (r === 0 && q === 0) ? `<g><rect x="${x0 + 0.6}" y="${y0 + 1.6}" width="5" height="5" fill="none" stroke="#000" stroke-width="0.05"/><text x="${x0 + 0.6}" y="${y0 + 1.2}" style="font:0.6px sans-serif">확인용 5cm 정사각형</text></g>` : "";
+    pages.push(`<div class="pg"><svg xmlns="http://www.w3.org/2000/svg" width="190mm" height="277mm" viewBox="${x0} ${y0} ${pw} ${ph}">${S.style}
+      <rect x="${x0}" y="${y0}" width="${pw}" height="${ph}" fill="#fff"/>${S.body}
+      <rect x="${x0 + 0.05}" y="${y0 + 0.05}" width="${pw - 0.1}" height="${ph - 0.1}" fill="none" stroke="#999" stroke-width="0.03" stroke-dasharray="0.3 0.3"/>${cross}${test}
+      <text x="${x0 + pw - 0.4}" y="${y0 + 0.9}" text-anchor="end" style="font:700 0.7px sans-serif;fill:#999">${id} (${rows}행 × ${cols}열)</text></svg></div>`);
+  }
+  return { html: pages.join(""), cols, rows };
+};
+
+ids.forEach(k => $(k).addEventListener("input", render));
+render();
+</script>
