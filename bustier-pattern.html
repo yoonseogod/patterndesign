@@ -165,9 +165,11 @@ function widths(o) {
   const fr = { b: 0.525, u: 0.514, w: 0.516, h: 0.512 };
   const F = {}, Bk = {};
   for (const k in L) { F[k] = L[k] * fr[k]; Bk[k] = L[k] - F[k]; }
-  const p1 = { b: Math.min(o.bpi / 2, F.b * 0.6), u: F.u * 0.417, w: F.w * 0.424, h: F.h * 0.386 };
-  const fs = { b: [0.54, 0.46], u: [0.524, 0.476], w: [0.526, 0.474], h: [0.519, 0.481] };
-  const bs = { b: [0.3, 0.35, 0.35], u: [0.294, 0.353, 0.353], w: [0.29, 0.355, 0.355], h: [0.31, 0.357, 0.333] };
+  // The back is nearly flat between bust and underbust: only ~20% of that reduction goes to the back, the rest into the cups.
+  Bk.u = Bk.b - (L.b - L.u) * 0.2; F.u = L.u - Bk.u;
+  const p1 = { b: Math.min(o.bpi / 2, F.b * 0.6), u: F.u * 0.43, w: F.w * 0.424, h: F.h * 0.386 };
+  const fs = { b: [0.54, 0.46], u: [0.52, 0.48], w: [0.526, 0.474], h: [0.519, 0.481] };
+  const bs = { b: [0.3, 0.35, 0.35], u: [0.3, 0.35, 0.35], w: [0.29, 0.355, 0.355], h: [0.31, 0.357, 0.333] };
   const W = [p1, {}, {}, {}, {}, {}];
   for (const k in L) {
     const r = F[k] - p1[k];
@@ -179,14 +181,31 @@ function widths(o) {
   return W;
 }
 
-// Catmull-Rom through points -> cubic segments [p0, c1, c2, p3]
+// Natural cubic spline x(y) through the edge points, sampled every ~0.25cm -> smooth seam with no kinks.
+// Returned as straight cubic pieces [p, p, q, q] so length/path helpers stay simple.
 function crSegs(pts) {
-  const s = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
-    s.push([p1, [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6], p2]);
+  const n = pts.length, y = pts.map(p => p[1]), x = pts.map(p => p[0]);
+  const h = [], a = new Array(n).fill(0), M = new Array(n).fill(0);
+  for (let i = 0; i < n - 1; i++) h.push(y[i + 1] - y[i]);
+  const d = [], c = [], r = [];
+  for (let i = 1; i < n - 1; i++) {
+    d.push(2 * (h[i - 1] + h[i])); c.push(h[i]);
+    r.push(6 * ((x[i + 1] - x[i]) / h[i] - (x[i] - x[i - 1]) / h[i - 1]));
   }
-  return s;
+  for (let i = 1; i < d.length; i++) { const m = h[i] / d[i - 1]; d[i] -= m * c[i - 1]; r[i] -= m * r[i - 1]; }
+  for (let i = d.length - 1; i >= 0; i--) M[i + 1] = (r[i] - (i + 1 < d.length ? c[i] * M[i + 2] : 0)) / d[i];
+  const X = t => {
+    let i = 0; while (i < n - 2 && t > y[i + 1]) i++;
+    const A = (y[i + 1] - t) / h[i], B = (t - y[i]) / h[i];
+    return A * x[i] + B * x[i + 1] + ((A * A * A - A) * M[i] + (B * B * B - B) * M[i + 1]) * h[i] * h[i] / 6;
+  };
+  const steps = Math.max(8, Math.ceil((y[n - 1] - y[0]) / 0.25)), segs = [];
+  let prev = pts[0];
+  for (let k = 1; k <= steps; k++) {
+    const t = y[0] + (y[n - 1] - y[0]) * k / steps, q = k === steps ? pts[n - 1] : [X(t), t];
+    segs.push([prev, prev, q, q]); prev = q;
+  }
+  return segs;
 }
 function bez(seg, t) {
   const [a, b, c, d] = seg, u = 1 - t;
@@ -233,7 +252,8 @@ function sheet(o, light) {
   let ox = m;
   const offs = D.map(p => { const x = ox; ox += p.maxW + gap; return x; });
   const vw = ox - gap + m, vh = yMax - yMin;
-  const T = (p, x) => `${f(x + p[0])} ${f(yMax - p[1])}`;
+  const g2 = n => n.toFixed(2);
+  const T = (p, x) => `${g2(x + p[0])} ${g2(yMax - p[1])}`;
   const segPath = (segs, x) => segs.map(s => `C${T(s[1], x)} ${T(s[2], x)} ${T(s[3], x)}`).join(" ");
   const rev = segs => segs.slice().reverse().map(s => [s[3], s[2], s[1], s[0]]);
 
