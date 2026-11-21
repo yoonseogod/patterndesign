@@ -1,0 +1,453 @@
+<title>뷔스티에 3D 가봉</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: drafting table — piece controls beside a large rotatable mannequin view; stacks on phones */
+:root {
+  --bg: #eef1f3;
+  --sheet: #fbfcfd;
+  --view: #e4e9ee;
+  --ink: #1c2b3a;
+  --muted: #5d6e7f;
+  --mark: #c2412d;
+  --accent: #2e5f8a;
+  --line: #cbd5de;
+  --chip: #f1f4f7;
+  --display: "Gowun Batang", "Noto Serif KR", serif;
+  --body: "Noto Sans KR", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121820; --sheet: #18212b; --view: #1d2833; --ink: #e3ebf2; --muted: #93a5b6; --mark: #ef7a63;
+  --accent: #7fb2de; --line: #2c3a48; --chip: #22303e; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121820; --sheet: #18212b; --view: #1d2833; --ink: #e3ebf2; --muted: #93a5b6; --mark: #ef7a63;
+  --accent: #7fb2de; --line: #2c3a48; --chip: #22303e; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.55; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; flex-direction: column; gap: 4px; margin-bottom: 20px; }
+h1 { font-family: var(--display); font-size: 1.9rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 0; max-width: 66ch; }
+.layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
+@media (max-width: 880px) { .layout { grid-template-columns: 1fr; } .layout > .view { order: -1; } }
+.panel { background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+h2 { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0; font-weight: 500; }
+.chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.chip { font: 700 0.95rem var(--mono); padding: 6px 0; border-radius: 4px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.chip i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--muted); display: inline-block; }
+.chip[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+.chip:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sel { font-size: 1rem; font-weight: 700; margin: 0; }
+.sel span { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+.field { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; }
+.field label { font-size: 0.92rem; }
+.field output { font-family: var(--mono); font-size: 0.88rem; font-variant-numeric: tabular-nums; color: var(--accent); }
+.field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 0.92rem; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 0.76rem; padding: 4px 6px 4px 0; white-space: nowrap; }
+td { padding: 5px 6px 5px 0; border-bottom: 1px dashed var(--line); }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+tr.on td { color: var(--accent); font-weight: 500; }
+.warn { color: var(--mark); }
+.note { font-size: 0.8rem; color: var(--muted); margin: 0; }
+.right { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.view { background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; min-width: 0; }
+.stage { position: relative; height: min(72vh, 680px); min-height: 380px; background: var(--view); touch-action: none; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.tags { position: absolute; inset: 0; pointer-events: none; }
+.tag { position: absolute; transform: translate(-50%, -50%); font: 700 0.8rem var(--mono); padding: 1px 6px; border-radius: 3px; background: var(--sheet); color: var(--ink); border: 1px solid var(--line); white-space: nowrap; }
+.tag.on { background: var(--accent); color: var(--sheet); border-color: var(--accent); }
+.tag.ring { font-weight: 500; font-size: 0.72rem; color: var(--mark); border-color: transparent; background: transparent; }
+.views { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 6px; pointer-events: auto; }
+.views button { font: 500 0.8rem var(--body); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); cursor: pointer; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: var(--muted); padding: 10px 14px; border-top: 1px solid var(--line); }
+.scroll { overflow-x: auto; }
+.err { padding: 20px; color: var(--mark); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>뷔스티에 3D 가봉</h1>
+    <p class="sub">기본 마네킹(가슴 84 · 밑가슴 70 · 허리 64cm) 위에 겉층 주름 조각 A~J를 올려본 모델이에요. 드래그로 돌리고, 조각을 골라 반지름·각도·방향을 바꾸면 재단 크기가 바로 다시 계산돼요.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>조각 선택</h2>
+      <div class="chips" id="chips"></div>
+      <p class="sel" id="selName"></p>
+      <div id="fanCtl">
+        <div class="field"><label for="R">반지름 (완성)</label><output id="oR"></output><input type="range" id="R" min="5" max="26" step="0.5"></div>
+        <div class="field"><label for="ang">펼친 각도</label><output id="oAng"></output><input type="range" id="ang" min="20" max="200" step="5"></div>
+        <div class="field"><label for="dir">방향</label><output id="oDir"></output><input type="range" id="dir" min="0" max="360" step="5"></div>
+      </div>
+      <table id="selTable"></table>
+
+      <h2>보기</h2>
+      <label class="check"><input type="checkbox" id="showOver" checked> 겉층 주름 조각</label>
+      <label class="check"><input type="checkbox" id="showBase" checked> 속층 몸판 (광목)</label>
+      <label class="check"><input type="checkbox" id="showRings" checked> 치수선</label>
+      <p class="note">외주름 겉폭 1cm 기준이에요. 재단 반지름 = 완성 반지름 + 시접 1.5cm, 재단 각도 = 펼친 각도 × 3.</p>
+    </aside>
+
+    <div class="right">
+      <section class="view">
+        <div class="stage" id="stage">
+          <div class="tags" id="tags"></div>
+          <div class="views">
+            <button type="button" id="vFront">앞</button>
+            <button type="button" id="vSide">옆</button>
+            <button type="button" id="vBack">뒤</button>
+          </div>
+        </div>
+        <div class="legend">
+          <span>드래그: 회전 · 휠/핀치: 확대</span>
+          <span>조각 위 줄무늬 1칸 = 겉주름 1개 (1cm)</span>
+          <span>형태 확인용 근사 모델이에요</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>전체 재단표 (광목 2차 가봉용)</h2>
+        <div class="scroll"><table id="allTable"></table></div>
+        <p class="note">재단 각도가 360°를 넘으면 원 하나로 모자라요. 원 여러 장을 잇고, 이음선은 주름 안쪽 접힘에 숨겨요.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const f1 = n => (Math.round(n * 10) / 10).toFixed(1);
+
+// ---------- mannequin shape (cm). v = height above waist, u = arc length from CF (+ = viewer's right) ----------
+function natural(xs, ys) {
+  const n = xs.length, h = [], M = new Array(n).fill(0), d = [], c = [], r = [];
+  for (let i = 0; i < n - 1; i++) h.push(xs[i + 1] - xs[i]);
+  for (let i = 1; i < n - 1; i++) { d.push(2 * (h[i - 1] + h[i])); c.push(h[i]); r.push(6 * ((ys[i + 1] - ys[i]) / h[i] - (ys[i] - ys[i - 1]) / h[i - 1])); }
+  for (let i = 1; i < d.length; i++) { const m = h[i] / d[i - 1]; d[i] -= m * c[i - 1]; r[i] -= m * r[i - 1]; }
+  for (let i = d.length - 1; i >= 0; i--) M[i + 1] = (r[i] - (i + 1 < d.length ? c[i] * M[i + 2] : 0)) / d[i];
+  return t => {
+    t = Math.min(xs[n - 1], Math.max(xs[0], t));
+    let i = 0; while (i < n - 2 && t > xs[i + 1]) i++;
+    const A = (xs[i + 1] - t) / h[i], B = (t - xs[i]) / h[i];
+    return A * ys[i] + B * ys[i + 1] + ((A * A * A - A) * M[i] + (B * B * B - B) * M[i + 1]) * h[i] * h[i] / 6;
+  };
+}
+const LV = [[-32, 16.2, 12.4], [-24, 16.4, 12.3], [-12, 15.4, 11.4], [0, 11.5, 8.5], [9, 12.4, 9.4], [17, 12.9, 9.0], [25, 14.2, 9.4], [30, 17.2, 9.0], [33.5, 14.5, 8.2], [36.5, 7.2, 6.2], [42, 6.0, 5.4]];
+const A_ = natural(LV.map(l => l[0]), LV.map(l => l[1]));
+const B_ = natural(LV.map(l => l[0]), LV.map(l => l[2]));
+const circ = v => { const a = A_(v), b = B_(v); return Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b))); };
+const BP = { u: 8.5, v: 17 };
+function bust(u, v) {
+  const gu = Math.exp(-Math.pow(Math.abs(u) - BP.u, 2) / (2 * 4.8 * 4.8));
+  const sv = v < BP.v ? 4.0 : 6.5;
+  return 4.2 * gu * Math.exp(-Math.pow(v - BP.v, 2) / (2 * sv * sv));
+}
+// Point on the form at (u, v), pushed outward by off cm.
+function S(u, v, off) {
+  const C = circ(v), th = u * 2 * Math.PI / C, a = A_(v), b = B_(v);
+  const nx = Math.sin(th) / a, nz = Math.cos(th) / b, nl = Math.hypot(nx, nz);
+  const front = Math.cos(th) > 0 ? 1 : 0;
+  const o = off + front * bust(u, v);
+  return [a * Math.sin(th) + o * nx / nl, v, b * Math.cos(th) + o * nz / nl];
+}
+// Bodice top edge (sweetheart) as a function of |u| fraction around the body
+const TOP = natural([0, 0.5, 1, 1.5, 2, 3.2], [19, 22.5, 25, 24, 22, 20]);
+const topV = u => { const C = circ(18); const t = Math.abs(u) / (C / 2) * 3.2; return TOP(Math.min(3.2, t)); };
+const HEM = -12;
+
+// ---------- pieces ----------
+const PIECES = [
+  { id: "J", name: "뒤판 세로주름", col: "k", kind: "band", which: "back", layer: 0.15 },
+  { id: "I", name: "옆구리 세로주름", col: "k", kind: "band", which: "side", layer: 0.3 },
+  { id: "G", name: "왼 페플럼", col: "k", kind: "fan", cu: -12, cv: 0, R: 16, ang: 100, dir: 230, layer: 0.45, flare: 1 },
+  { id: "H", name: "오른 페플럼", col: "k", kind: "fan", cu: 12, cv: 0, R: 16, ang: 100, dir: 310, layer: 0.5, flare: 1 },
+  { id: "F", name: "아래 흰 부채꼴", col: "w", kind: "fan", cu: 0, cv: -1, R: 15, ang: 150, dir: 270, layer: 0.65, flare: 1 },
+  { id: "C", name: "오른컵 검정", col: "k", kind: "fan", cu: 15, cv: 8, R: 14, ang: 60, dir: 122, layer: 0.8, cup: 1 },
+  { id: "B", name: "오른컵 흰색", col: "w", kind: "fan", cu: 0, cv: 9, R: 16, ang: 40, dir: 68, layer: 0.95, cup: 1 },
+  { id: "A", name: "왼컵 검정", col: "k", kind: "fan", cu: 0, cv: 9, R: 16, ang: 90, dir: 135, layer: 1.1, cup: 1 },
+  { id: "D", name: "리본 흰색", col: "w", kind: "fan", cu: 0, cv: 4, R: 9, ang: 150, dir: 180, layer: 1.3, bow: 1 },
+  { id: "E", name: "리본 검정", col: "k", kind: "fan", cu: 0, cv: 4, R: 9, ang: 120, dir: 0, layer: 1.35, bow: 1 },
+];
+const ORDER = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+const byId = Object.fromEntries(PIECES.map(p => [p.id, p]));
+const COL = { k: [[0.13, 0.13, 0.14], [0.27, 0.27, 0.29]], w: [[0.95, 0.95, 0.94], [0.74, 0.75, 0.76]] };
+
+function fanRmax(p, phi) {
+  if (!p.bow) return p.R;
+  return p.R * (0.3 + 0.7 * Math.abs(Math.sin(phi))); // pinched in the middle like a bow
+}
+function fanOffset(p, u, v) {
+  let o = p.layer;
+  if (p.flare && v < HEM) o += 0.35 * (HEM - v);
+  if (p.cup) { const t = topV(u); if (v > t) o += 0.3 * (v - t); }
+  return o;
+}
+function bandRange(p, v) {
+  const q = circ(v) / 4;
+  return p.which === "side" ? [11, q + 1.5] : [q + 1.5, circ(v) / 2 - 0.05];
+}
+
+function addQuad(pos, col, a, b, c, d, ca, cb) {
+  pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+  col.push(...ca, ...ca, ...cb, ...ca, ...cb, ...cb);
+}
+function buildPiece(p) {
+  const pos = [], col = [];
+  const [c0, c1] = COL[p.col];
+  if (p.kind === "fan") {
+    const a0 = (p.dir - p.ang / 2) * Math.PI / 180, span = p.ang * Math.PI / 180;
+    const pleats = Math.max(4, Math.round(p.R * span));
+    const NR = 14;
+    for (let k = 0; k < pleats; k++) {
+      const pa = a0 + span * k / pleats, pb = a0 + span * (k + 1) / pleats;
+      for (let j = 0; j < NR; j++) {
+        const P = (phi, t) => { const r = 0.2 + (fanRmax(p, phi) - 0.2) * t; const u = p.cu + r * Math.cos(phi), v = p.cv + r * Math.sin(phi); return S(u, v, fanOffset(p, u, v)); };
+        const t0 = j / NR, t1 = (j + 1) / NR;
+        addQuad(pos, col, P(pa, t0), P(pa, t1), P(pb, t1), P(pb, t0), c0, c1);
+      }
+    }
+  } else {
+    const NV = 22;
+    for (const sgn of [-1, 1]) {
+      const r0 = bandRange(p, 0), cols = Math.max(4, Math.round(r0[1] - r0[0]));
+      for (let k = 0; k < cols; k++) {
+        for (let j = 0; j < NV; j++) {
+          const P = (s, t) => {
+            const uu = (() => { const r = bandRange(p, 10); return r[0] + (r[1] - r[0]) * s; })();
+            const vTop = topV(uu) - 0.5, v = HEM + (vTop - HEM) * t;
+            const r = bandRange(p, v), u = r[0] + (r[1] - r[0]) * s;
+            return S(sgn * u, v, p.layer);
+          };
+          const s0 = k / cols, s1 = (k + 1) / cols, t0 = j / NV, t1 = (j + 1) / NV;
+          const ca = sgn > 0 ? c0 : c1, cb = sgn > 0 ? c1 : c0;
+          addQuad(pos, col, P(s0, t0), P(s0, t1), P(s1, t1), P(s1, t0), ca, cb);
+        }
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
+}
+function outline(p) {
+  const pts = [];
+  if (p.kind === "fan") {
+    const a0 = (p.dir - p.ang / 2) * Math.PI / 180, span = p.ang * Math.PI / 180, N = 60;
+    const at = (phi, r) => { const u = p.cu + r * Math.cos(phi), v = p.cv + r * Math.sin(phi); return S(u, v, fanOffset(p, u, v) + 0.25); };
+    pts.push(at(a0, 0.2));
+    for (let i = 0; i <= N; i++) { const phi = a0 + span * i / N; pts.push(at(phi, fanRmax(p, phi))); }
+    pts.push(at(a0 + span, 0.2));
+  } else {
+    for (const sgn of [1]) {
+      const N = 30, side = (s) => { const out = []; for (let i = 0; i <= N; i++) { const v = HEM + (topV(bandRange(p, 10)[0] + (bandRange(p, 10)[1] - bandRange(p, 10)[0]) * s) - 0.5 - HEM) * i / N; const r = bandRange(p, v); out.push(S(sgn * (r[0] + (r[1] - r[0]) * s), v, p.layer + 0.25)); } return out; };
+      const L = side(0), Rr = side(1).reverse();
+      pts.push(...L, ...Rr, L[0]);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pts.flat(), 3));
+  return g;
+}
+function labelPoint(p) {
+  if (p.kind === "fan") {
+    const phi = p.dir * Math.PI / 180, r = fanRmax(p, phi) * (p.bow ? 0.55 : 0.6);
+    const u = p.cu + r * Math.cos(phi), v = p.cv + r * Math.sin(phi);
+    return S(u, v, fanOffset(p, u, v) + 1);
+  }
+  const r = bandRange(p, 4); return S((r[0] + r[1]) / 2, 4, p.layer + 1);
+}
+
+// ---------- cut sizes ----------
+function cut(p) {
+  if (p.kind === "fan") {
+    const arc = p.R * p.ang * Math.PI / 180, pleats = Math.round(arc), cutAng = p.ang * 3;
+    let how = cutAng <= 360 ? (cutAng === 360 ? "원 1장, 반지름 방향으로 한 줄 트기" : `원에서 ${360 - cutAng}° 빼고 재단`) : `원 ${Math.floor(cutAng / 360)}장 + ${cutAng % 360}° 이어서`;
+    if (cutAng > 360 && cutAng % 360 === 0) how = `원 ${cutAng / 360}장 이어서`;
+    return { fin: `R ${f1(p.R)} · ${p.ang}°`, pleats, cutR: f1(p.R + 1.5), cutA: `${cutAng}°`, how, over: cutAng > 360, qty: 1 };
+  }
+  const r0 = bandRange(p, 0), w = r0[1] - r0[0], h = topV((r0[0] + r0[1]) / 2) - HEM;
+  return { fin: `${f1(w)} × ${f1(h)}`, pleats: Math.round(w), cutR: "–", cutA: "–", how: `직사각형 ${f1((w + 5) * 3)} × ${f1(h + 5)}cm`, over: false, qty: 2 };
+}
+
+// ---------- three.js scene ----------
+let selected = "A";
+const stage = $("stage");
+let renderer, scene, camera, controls, meshes = {}, lines = {}, base, rings, form;
+const tagEls = {}, ringTags = [];
+
+function cssColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function init() {
+  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  stage.insertBefore(renderer.domElement, stage.firstChild);
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(28, 1, 1, 2000);
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.enablePan = false;
+  controls.minDistance = 70; controls.maxDistance = 320;
+  controls.target.set(0, 4, 0);
+  setView(0);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 0.75));
+  const d1 = new THREE.DirectionalLight(0xffffff, 0.75); d1.position.set(60, 90, 120); scene.add(d1);
+  const d2 = new THREE.DirectionalLight(0xffffff, 0.35); d2.position.set(-90, 20, -60); scene.add(d2);
+
+  // dress form
+  const NU = 96, NV = 80, v0 = -32, v1 = 42, fpos = [], idx = [];
+  for (let j = 0; j <= NV; j++) {
+    const v = v0 + (v1 - v0) * j / NV, C = circ(v);
+    for (let i = 0; i <= NU; i++) fpos.push(...S((i / NU - 0.5) * C, v, 0));
+  }
+  for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) {
+    const a = j * (NU + 1) + i, b = a + NU + 1;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  const fg = new THREE.BufferGeometry();
+  fg.setAttribute("position", new THREE.Float32BufferAttribute(fpos, 3)); fg.setIndex(idx); fg.computeVertexNormals();
+  form = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ color: 0xb9ad9e, roughness: 0.95 }));
+  scene.add(form);
+  const cap = new THREE.Mesh(new THREE.CircleGeometry(1, 40), form.material);
+  cap.scale.set(A_(42), B_(42), 1); cap.rotation.x = -Math.PI / 2; cap.position.y = 42; scene.add(cap);
+  const capB = cap.clone(); capB.scale.set(A_(-32), B_(-32), 1); capB.rotation.x = Math.PI / 2; capB.position.y = -32; scene.add(capB);
+  const stand = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 40, 16), new THREE.MeshStandardMaterial({ color: 0x6b6460, roughness: 0.6 }));
+  stand.position.y = -52; scene.add(stand);
+
+  // inner bodice (muslin)
+  const bpos = [], bidx = [], BU = 120, BV = 30;
+  for (let j = 0; j <= BV; j++) for (let i = 0; i <= BU; i++) {
+    const s = i / BU - 0.5, t = j / BV, Cm = circ(10), u = s * Cm;
+    const v = HEM + (topV(u) - HEM) * t, C = circ(v);
+    bpos.push(...S(s * C, v, 0.08));
+  }
+  for (let j = 0; j < BV; j++) for (let i = 0; i < BU; i++) { const a = j * (BU + 1) + i, b = a + BU + 1; bidx.push(a, b, a + 1, a + 1, b, b + 1); }
+  const bg = new THREE.BufferGeometry();
+  bg.setAttribute("position", new THREE.Float32BufferAttribute(bpos, 3)); bg.setIndex(bidx); bg.computeVertexNormals();
+  base = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ color: 0xe9e1cf, roughness: 1, side: THREE.DoubleSide }));
+  scene.add(base);
+
+  // measurement rings
+  rings = new THREE.Group();
+  [[BP.v, "가슴 84"], [9, "밑가슴 70"], [0, "허리 64"], [HEM, "밑단 86"]].forEach(([v, label]) => {
+    const pts = [], C = circ(v);
+    for (let i = 0; i <= 120; i++) pts.push(...S((i / 120 - 0.5) * C, v, 2.2));
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    rings.add(new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xc2412d, dashSize: 1.2, gapSize: 0.8 })));
+    rings.children[rings.children.length - 1].computeLineDistances();
+    const el = document.createElement("span"); el.className = "tag ring"; el.textContent = label; $("tags").appendChild(el);
+    ringTags.push({ el, pos: new THREE.Vector3(...S(-C * 0.2, v, 2.6)) });
+  });
+  scene.add(rings);
+
+  PIECES.forEach(p => {
+    const el = document.createElement("span"); el.className = "tag"; el.textContent = p.id; $("tags").appendChild(el); tagEls[p.id] = el;
+    rebuild(p);
+  });
+  applyTheme(); resize(); loop();
+}
+
+function rebuild(p) {
+  if (meshes[p.id]) { scene.remove(meshes[p.id]); meshes[p.id].geometry.dispose(); }
+  if (lines[p.id]) { scene.remove(lines[p.id]); lines[p.id].geometry.dispose(); }
+  const m = new THREE.Mesh(buildPiece(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
+  meshes[p.id] = m; scene.add(m);
+  const l = new THREE.Line(outline(p), new THREE.LineBasicMaterial({ color: 0x2e5f8a }));
+  lines[p.id] = l; scene.add(l);
+  p.tagPos = new THREE.Vector3(...labelPoint(p));
+  updateVisibility();
+}
+function updateVisibility() {
+  const over = $("showOver").checked;
+  PIECES.forEach(p => {
+    if (meshes[p.id]) meshes[p.id].visible = over;
+    if (lines[p.id]) lines[p.id].visible = over && p.id === selected;
+  });
+  if (base) base.visible = $("showBase").checked;
+  if (rings) rings.visible = $("showRings").checked;
+}
+function applyTheme() {
+  if (!scene) return;
+  scene.background = new THREE.Color(cssColor("--view") || "#e4e9ee");
+  const acc = new THREE.Color(cssColor("--accent") || "#2e5f8a");
+  Object.values(lines).forEach(l => l.material.color = acc);
+}
+function setView(az) {
+  const d = 210, el = 0.08;
+  camera.position.set(d * Math.sin(az) * Math.cos(el), 4 + d * Math.sin(el), d * Math.cos(az) * Math.cos(el));
+  camera.lookAt(controls.target);
+}
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+const tmp = new THREE.Vector3();
+function place(el, pos, show) {
+  if (!show) { el.hidden = true; return; }
+  tmp.copy(pos).project(camera);
+  const facing = tmp.z < 1 && (() => { const n = new THREE.Vector3(pos.x, 0, pos.z).normalize(); const c = new THREE.Vector3(camera.position.x, 0, camera.position.z).normalize(); return n.dot(c) > 0.05; })();
+  el.hidden = !facing;
+  el.style.left = ((tmp.x + 1) / 2 * stage.clientWidth) + "px";
+  el.style.top = ((1 - tmp.y) / 2 * stage.clientHeight) + "px";
+}
+function loop() {
+  controls.update();
+  renderer.render(scene, camera);
+  const over = $("showOver").checked;
+  PIECES.forEach(p => { tagEls[p.id].classList.toggle("on", p.id === selected); place(tagEls[p.id], p.tagPos, over); });
+  ringTags.forEach(t => place(t.el, t.pos, $("showRings").checked));
+  requestAnimationFrame(loop);
+}
+
+// ---------- UI ----------
+function renderChips() {
+  $("chips").innerHTML = ORDER.map(id => {
+    const p = byId[id];
+    return `<button type="button" class="chip" data-id="${id}" aria-pressed="${id === selected}" title="${p.name}"><i style="background:${p.col === "k" ? "#222" : "#f3f3f1"}"></i>${id}</button>`;
+  }).join("");
+}
+function renderSel() {
+  const p = byId[selected], c = cut(p);
+  $("selName").innerHTML = `${p.id} ${p.name} <span>· ${p.col === "k" ? "검정" : "흰색"}${p.kind === "band" ? " · 좌우 2장" : ""}</span>`;
+  $("fanCtl").hidden = p.kind !== "fan";
+  if (p.kind === "fan") {
+    $("R").value = p.R; $("ang").value = p.ang; $("dir").value = p.dir;
+    $("oR").textContent = f1(p.R) + " cm"; $("oAng").textContent = p.ang + "°"; $("oDir").textContent = p.dir + "°";
+  }
+  $("selTable").innerHTML = `
+    <tr><td>완성 크기</td><td class="n">${c.fin}</td></tr>
+    <tr><td>겉주름 수 (1cm)</td><td class="n">${c.pleats}개</td></tr>
+    ${p.kind === "fan" ? `<tr><td>재단 반지름</td><td class="n">${c.cutR} cm</td></tr><tr><td>재단 각도</td><td class="n ${c.over ? "warn" : ""}">${c.cutA}</td></tr>` : ""}
+    <tr><td>재단 방법</td><td class="n ${c.over ? "warn" : ""}">${c.how}</td></tr>`;
+  renderAll();
+}
+function renderAll() {
+  $("allTable").innerHTML = `<tr><th>조각</th><th>색</th><th class="n">완성</th><th class="n">주름</th><th class="n">재단 R</th><th class="n">재단 각도</th><th>재단 방법</th></tr>` +
+    ORDER.map(id => { const p = byId[id], c = cut(p); return `<tr class="${id === selected ? "on" : ""}"><td>${id} ${p.name}</td><td>${p.col === "k" ? "검정" : "흰색"}</td><td class="n">${c.fin}</td><td class="n">${c.pleats}</td><td class="n">${c.cutR}</td><td class="n ${c.over ? "warn" : ""}">${c.cutA}</td><td class="${c.over ? "warn" : ""}">${c.how}${c.qty > 1 ? " · 2장" : ""}</td></tr>`; }).join("");
+}
+$("chips").addEventListener("click", e => { const b = e.target.closest(".chip"); if (!b) return; selected = b.dataset.id; renderChips(); renderSel(); updateVisibility(); });
+["R", "ang", "dir"].forEach(k => $(k).addEventListener("input", () => {
+  const p = byId[selected]; p[k] = parseFloat($(k).value); renderSel(); if (scene) rebuild(p);
+}));
+["showOver", "showBase", "showRings"].forEach(k => $(k).addEventListener("change", updateVisibility));
+$("vFront").addEventListener("click", () => setView(0));
+$("vSide").addEventListener("click", () => setView(Math.PI / 2));
+$("vBack").addEventListener("click", () => setView(Math.PI));
+window.addEventListener("resize", () => renderer && resize());
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", applyTheme);
+
+renderChips(); renderSel();
+try { if (!window.THREE || !THREE.OrbitControls) throw new Error("3D 라이브러리를 불러오지 못했어요."); init(); }
+catch (e) { stage.innerHTML = `<p class="err">3D 화면을 띄우지 못했어요. 새로고침해 보세요. (${e.message})</p>`; }
+</script>
